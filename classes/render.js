@@ -20,7 +20,7 @@ class leinad_app_render {
             jquery: "https://code.jquery.com/jquery-3.6.0.min.js",
             vue: "https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js",
             react: "https://unpkg.com/react@18/umd/react.production.min.js",
-            cssbear: "https://cdn.jsdelivr.net/npm/beercss@3.12.7/+esm",
+            cssbear: "https://cdn.jsdelivr.net/npm/beercss@3.12.7/dist/cdn/beer.min.css",
             csstailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
         };
     }

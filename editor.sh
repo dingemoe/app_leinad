@@ -43,6 +43,8 @@ MULTILINE_NEW=""
 SYNC_CHECK=false
 FORCE_PUSH=false
 COMPARE_GITHUB=false
+CHECK_LOGS=""
+LIVE_LOGS=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -58,7 +60,13 @@ while [[ $# -gt 0 ]]; do
         --history) SHOW_HISTORY=true; shift ;;
         --diff) SHOW_DIFF=true; shift ;;
         --log) SHOW_LOG="$2"; shift 2 ;;
-        --show-commit) SHOW_COMMIT="$2"; shift 2 ;;
+                --show-commit) SHOW_COMMIT="$2"; shift 2 ;;
+        --lines) SHOW_LINES="$2"; shift 2 ;;
+        --remove-lines) REMOVE_FROM="$2"; REMOVE_TO="$3"; shift 3 ;;
+        --multiline-replace) MULTILINE_OLD="$2"; MULTILINE_NEW="$3"; shift 3 ;;
+        --check-logs) CHECK_LOGS="$2"; shift 2 ;;
+        --live-logs) LIVE_LOGS=true; shift ;;
+        *) UPDATE_VERSION=true; break ;;
         --lines) SHOW_LINES="$2"; shift 2 ;;
         --remove-lines) REMOVE_FROM="$2"; REMOVE_TO="$3"; shift 3 ;;
         --multiline-replace) MULTILINE_OLD="$2"; MULTILINE_NEW="$3"; shift 3 ;;
@@ -309,6 +317,119 @@ auto_sync_all() {
     echo "✅ [SYNC] Auto-sync completed"
 }
 
+# Check Deno KV logs from API
+check_deno_logs() {
+    local token_or_location="$1"
+    local api_base="https://leinad-log.deno.dev"
+    
+    echo "📊 [LOGS] Fetching logs from Deno KV API..."
+    echo "=========================================="
+    
+    if [ -n "$token_or_location" ]; then
+        # Try as token first, then as location
+        echo "🔑 Trying as token: $token_or_location"
+        local url_token="$api_base/logs?token=$token_or_location&limit=20"
+        
+        echo "🔗 API: $url_token"
+        echo "------------------------------------------"
+        
+        if curl -s -H "Accept: application/json" "$url_token" | python3 -c "
+import json
+import sys
+try:
+    data = json.load(sys.stdin)
+    if isinstance(data, dict) and 'error' in data:
+        print('❌ Token not found, trying as location filter...')
+        exit(1)
+    elif isinstance(data, list) and len(data) > 0:
+        print(f'✅ Found {len(data)} logs with token')
+        for item in data[:5]:
+            dt = item.get('datetime', 'No time')
+            event = item.get('event', item.get('mode', 'unknown'))
+            loc = item.get('location', 'unknown')
+            print(f'🕒 {dt} | 📍 {loc} | 🎯 {event}')
+        exit(0)
+    else:
+        exit(1)
+except:
+    exit(1)
+" 2>/dev/null; then
+            echo "=========================================="
+            return 0
+        fi
+        
+        # Fallback to location filter
+        echo "🌐 Trying as location: $token_or_location"
+        local url_location="$api_base/logs?location=$token_or_location&limit=20"
+        echo "🔗 API: $url_location"
+        
+    else
+        local url_location="$api_base/logs?limit=20"
+        echo "🔗 API: $url_location"
+    fi
+    
+    echo "------------------------------------------"
+    
+    # Fetch logs with curl
+    if curl -s -H "Accept: application/json" "$url_location" | python3 -m json.tool 2>/dev/null; then
+        echo ""
+        echo "✅ [LOGS] Successfully fetched logs"
+    else
+        echo "❌ [LOGS] Failed to fetch logs or invalid JSON"
+        echo "Raw response:"
+        curl -s "$url_location"
+    fi
+    
+    echo "=========================================="
+}
+
+# Live log monitoring (with auto-refresh)
+live_log_monitor() {
+    local location_filter="${1:-$(hostname)}"
+    local api_base="https://leinad-log.deno.dev"
+    
+    echo "🔴 [LIVE] Starting live log monitor for: $location_filter"
+    echo "Press Ctrl+C to stop"
+    echo "=========================================="
+    
+    while true; do
+        clear
+        echo "🔴 [LIVE LOGS] $(date) - Location: $location_filter"
+        echo "=========================================="
+        
+        local url="$api_base/logs?location=$location_filter&limit=10"
+        if curl -s -H "Accept: application/json" "$url" | python3 -c "
+import json
+import sys
+from datetime import datetime
+
+try:
+    data = json.load(sys.stdin)
+    if isinstance(data, list):
+        for item in data[-10:]:  # Last 10 items
+            dt = item.get('datetime', 'No time')
+            event = item.get('event', 'unknown')
+            loc = item.get('location', 'unknown')
+            mode = item.get('mode', 'unknown')
+            print(f'🕒 {dt} | 📍 {loc} | 🎯 {event} | 📋 {mode}')
+            if 'data' in item and item['data']:
+                print(f'   📄 {str(item[\"data\"])[:100]}...')
+    else:
+        print('📋 No logs found or invalid format')
+except Exception as e:
+    print(f'❌ Error parsing logs: {e}')
+" 2>/dev/null; then
+            echo ""
+        else
+            echo "❌ Failed to fetch logs"
+        fi
+        
+        echo "=========================================="
+        echo "Refreshing in 5 seconds... (Ctrl+C to stop)"
+        sleep 5
+    done
+}
+
 # Show specific lines from a file  
 show_lines() {
     local file="$1"
@@ -443,6 +564,17 @@ fi
 
 if [ "$SYNC_CHECK" = true ]; then
     auto_sync_all
+    exit 0
+fi
+
+# Handle log checking
+if [ -n "$CHECK_LOGS" ]; then
+    check_deno_logs "$CHECK_LOGS"
+    exit 0
+fi
+
+if [ "$LIVE_LOGS" = true ]; then
+    live_log_monitor
     exit 0
 fi
 
