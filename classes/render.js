@@ -60,8 +60,7 @@ class leinad_app_render {
     }
 
 
-    async style(elem, config) {
-        await this.ensureCDNRegistryLoaded();
+    style(elem, config) {
         const fallbackHref = this.CDN_REGISTRY[this.extractKeyFromElement(elem)];
         const href = config.href || fallbackHref;
 
@@ -80,8 +79,7 @@ class leinad_app_render {
         this.setAttributes(elem, config.attributes);
     }
 
-    async script(elem, config) {
-        await this.ensureCDNRegistryLoaded();
+    script(elem, config) {
         const fallbackSrc = this.CDN_REGISTRY[this.extractKeyFromElement(elem)];
         const src = config.src || fallbackSrc;
 
@@ -105,8 +103,7 @@ class leinad_app_render {
         elem.innerHTML = htmlArray.join("");
     }
 
-    async render(configs = []) {
-        await this.ensureCDNRegistryLoaded();
+    render(configs = []) {
         const allNames = configs.map(([name]) => name);
         [...this.elements.head].forEach(({ name }) => {
             if (!allNames.includes(name) && this.CDN_REGISTRY[name]) {
@@ -125,9 +122,9 @@ class leinad_app_render {
 
             try {
                 if (type === "style") {
-                    await this.style(elem, set);
+                    this.style(elem, set);
                 } else if (type === "script") {
-                    await this.script(elem, set);
+                    this.script(elem, set);
                 } else if (Array.isArray(set)) {
                     this.html(elem, set);
                 } else if (type === "div" && name === "app_leinad_wrap" && typeof set === "object") {
