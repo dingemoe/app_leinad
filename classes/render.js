@@ -7,7 +7,7 @@ class leinad_app_render {
      * @returns {Promise<object|boolean>} Resultat eller suksess
      */
     async crudCDNRegistry(action, key, url) {
-        const endpoint = "/classes/cdn_registry.json";
+        const endpoint = "https://raw.githubusercontent.com/dingemoe/app_leinad/main/classes/cdn_registry.json";
         switch (action) {
             case "get": {
                 const res = await fetch(endpoint);
@@ -71,8 +71,9 @@ class leinad_app_render {
     }
 
     async loadCDNRegistry() {
+        const url = "https://raw.githubusercontent.com/dingemoe/app_leinad/main/classes/cdn_registry.json";
         try {
-            const res = await fetch("/classes/cdn_registry.json");
+            const res = await fetch(url);
             if (res.ok) {
                 this.CDN_REGISTRY = await res.json();
             } else {
