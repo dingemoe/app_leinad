@@ -1,0 +1,22 @@
+# Backup files from versioning hooks
+*.bak
+
+# Editor files
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Node modules (if any)
+node_modules/
+
+# Build outputs
+dist/
+build/
