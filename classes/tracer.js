@@ -7,8 +7,6 @@
 
 (function (root) {
   class LeinadTracer {
-    constructor(opts = {}) {
-      console.log(`[Tracer] v${LeinadTracer.VERSION} (modified ${LeinadTracer.MODIFIED_DATE})`);
     /**
      * @param {Object} opts
      * @param {string} opts.apiBase      Deno endpoint, e.g. "https://leinad-log.deno.dev"
@@ -19,6 +17,7 @@
      * @param {boolean}[opts.hookErrors]  hook window errors, default true
      */
     constructor(opts = {}) {
+      console.log(`[Tracer] v${LeinadTracer.VERSION} (modified ${LeinadTracer.MODIFIED_DATE})`);
       if (!opts.apiBase) throw new Error("LeinadTracer: apiBase må settes");
       this.apiBase = opts.apiBase.replace(/\/+$/, "");
       this.flushMs = typeof opts.flushMs === "number" ? opts.flushMs : 800;
