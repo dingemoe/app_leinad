@@ -1,5 +1,5 @@
 class leinad_app_render {
-    static VERSION = "1.3.18";
+    static VERSION = "1.3.19";
     static MODIFIED_DATE = "2025-09-18";
     constructor() {
         console.log(`[leinad_app_render] v${leinad_app_render.VERSION} (modified ${leinad_app_render.MODIFIED_DATE})`);

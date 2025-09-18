@@ -389,13 +389,30 @@ export const form = (source, builderFn) => new Form(source, builderFn);
 export const factory = (fn) => fn;
 
 // Server render function - fixed for factory patterns
-export const render = (element) => {
+export const render = async (element) => {
   // If element is a function (factory), call it to get the actual element
   const actualElement = typeof element === 'function' ? element() : element;
   
-  return new Response(renderToString(React.createElement(() => actualElement.toReact())), {
-    headers: { "Content-Type": "text/html" }
-  });
+  // Use the same renderApp logic for consistency
+  if (!actualElement._theme) actualElement._theme = getDefaultTheme();
+  await awaitAll(actualElement);
+  const reactElement = actualElement.build();
+  
+  const html = renderToString(reactElement);
+  
+  return new Response(
+    "<!DOCTYPE html>" +
+      `<html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <title>App Leinad</title>
+          <script src="https://cdn.tailwindcss.com"></script>
+        </head>
+        <body class="antialiased">${html}</body>
+      </html>`,
+    { headers: { "content-type": "text/html; charset=utf-8" } }
+  );
 };
 
 /* ===== Theme method injection ===== */
