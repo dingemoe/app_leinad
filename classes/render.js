@@ -66,57 +66,13 @@ class leinad_app_render {
             body: []
         };
 
-        this.CDN_REGISTRY = {};
-        this._cdnRegistryLoaded = this.loadCDNRegistry();
-    }
-
-    async loadCDNRegistry() {
-        const url = "https://raw.githubusercontent.com/dingemoe/app_leinad/main/classes/cdn_registry.json";
-        try {
-            const res = await fetch(url);
-            if (res.ok) {
-                this.CDN_REGISTRY = await res.json();
-            } else {
-                console.warn("Kunne ikke laste cdn_registry.json, bruker tomt objekt.");
-            }
-        } catch (e) {
-            console.error("Feil ved lasting av cdn_registry.json:", e);
-        }
-    }
-
-    // Kall denne før du bruker CDN_REGISTRY i kode som trenger det
-    async ensureCDNRegistryLoaded() {
-        if (this._cdnRegistryLoaded) {
-            await this._cdnRegistryLoaded;
-        }
-    }
-
-    // Setter default stil på wrapper
-    applyDefaultStyles(elem) {
-        Object.assign(elem.style, {
-            position: "fixed",
-            bottom: "0",
-            left: "0",
-            zIndex: "9999",
-            width: "300px",
-            height: "300px",
-            background: "rgba(0,0,0,0.7)",
-            color: "white",
-            overflow: "auto",
-            fontFamily: "sans-serif",
-            padding: "1rem"
-        });
-    }
-
-    // DOMContentLoaded callback
-    onReady(callback) {
-        window.addEventListener("DOMContentLoaded", () => callback(this));
-    }
-
-    elem([name, type]) {
-        const element = document.createElement(type);
-        element.setAttribute("class", name);
-        const entry = { name, type, elem: element };
+        this.CDN_REGISTRY = {
+    "jquery": "https://code.jquery.com/jquery-3.6.0.min.js",
+    "vue": "https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js",
+    "react": "https://unpkg.com/react@18/umd/react.production.min.js",
+    "cssbear": "https://cdn.jsdelivr.net/npm/beercss@3.12.7/+esm",
+    "csstailwind": "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
+        };
 
         if (type === "style" || type === "script") {
             this.elements.head.push(entry);
