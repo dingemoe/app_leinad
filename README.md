@@ -22,6 +22,16 @@ Et modulært React-basert UI framework med tema støtte, asyncrone komponenter o
 - **User presence**: Online/offline status
 - **Message history**: Konfigurerbar melding historikk
 - **Emoji support**: Integrert emoji støtte
+- **DevOps commands**: Slash commands for API integrasjon
+
+### DevOps Integration (`classes/devops.js`)
+- **Slash commands**: `/command params --flags` støtte
+- **API integrasjon**: REST API calls via chat
+- **Multiple endpoints**: Konfigurerbare API endpoints
+- **Parameter parsing**: Path, query og body parametere
+- **Response formatting**: Formatert API responses med syntax highlighting
+- **Error handling**: Robust feilhåndtering
+- **Presets**: Ferdigkonfigurerte integrasjoner (K8s, Docker, GitHub, etc.)
 
 ## Rask Start
 

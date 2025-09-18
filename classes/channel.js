@@ -14,6 +14,7 @@ export class Channel extends El {
       allowEmoji: true,
       wsUrl: null,
       httpEndpoint: null,
+      devops: null, // DevOpsIntegration instance
       ...options
     };
     
@@ -23,6 +24,7 @@ export class Channel extends El {
     this.ws = null;
     this.messageContainer = null;
     this.inputField = null;
+    this.devops = this.options.devops; // DevOps integration
     
     this.className("channel-container flex flex-col h-full bg-white dark:bg-gray-900");
     this._ready = this._init();
@@ -150,9 +152,28 @@ export class Channel extends El {
     }, 2000);
   }
 
-  _sendMessage() {
+  async _sendMessage() {
     const messageText = this.inputField.props.value?.trim();
     if (!messageText) return;
+
+    // Check if it's a DevOps command
+    if (this.devops && this.devops.isCommand(messageText)) {
+      try {
+        const response = await this.devops.executeCommand(messageText, this);
+        this._addMessage(response);
+      } catch (error) {
+        this._addMessage({
+          type: 'error',
+          text: `Command failed: ${error.message}`,
+          timestamp: Date.now(),
+          sender: { id: 'system', name: 'System', type: 'system' }
+        });
+      }
+      
+      // Clear input
+      this._clearInput();
+      return;
+    }
 
     const message = {
       id: this._generateId(),
@@ -185,6 +206,10 @@ export class Channel extends El {
     this._addMessage(message);
     
     // Clear input
+    this._clearInput();
+  }
+
+  _clearInput() {
     this.inputField.props.value = '';
     if (this.inputField.props.ref) {
       const element = this.inputField.props.ref;
@@ -233,39 +258,103 @@ export class Channel extends El {
   _createMessageElement(message) {
     const isOwn = message.sender.id === 'current-user';
     const isAgent = message.sender.type === 'agent';
+    const isSystem = message.sender.type === 'system';
+    const isApiResponse = message.type === 'api_response';
+    const isError = message.type === 'error';
     
     const timestamp = this.options.showTimestamps 
       ? span().className("text-xs text-gray-500 ml-2")
           .text(new Date(message.timestamp).toLocaleTimeString())
       : null;
 
-    const senderName = span()
-      .className(`font-medium ${isAgent ? 'text-purple-600' : isOwn ? 'text-blue-600' : 'text-gray-800'} dark:text-white`)
-      .text(message.sender.name + (isAgent ? ' 🤖' : ''));
+    // Different styling for different message types
+    let senderIcon = '';
+    let containerClass = '';
+    let textClass = '';
 
-    const messageText = span()
-      .className("text-gray-900 dark:text-gray-100")
-      .text(message.text);
+    if (isSystem) {
+      senderIcon = '⚙️';
+      containerClass = 'bg-gray-100 dark:bg-gray-800 border-l-4 border-blue-500';
+      textClass = 'text-gray-900 dark:text-gray-100';
+    } else if (isApiResponse) {
+      senderIcon = '🔧';
+      containerClass = 'bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500';
+      textClass = 'text-gray-900 dark:text-gray-100 font-mono text-sm';
+    } else if (isError) {
+      senderIcon = '⚠️';
+      containerClass = 'bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500';
+      textClass = 'text-red-900 dark:text-red-100';
+    } else if (isAgent) {
+      senderIcon = '🤖';
+      containerClass = 'bg-purple-100 dark:bg-purple-900';
+      textClass = 'text-gray-900 dark:text-gray-100';
+    } else if (isOwn) {
+      containerClass = 'bg-blue-500 text-white';
+      textClass = 'text-white';
+    } else {
+      containerClass = 'bg-gray-100 dark:bg-gray-800';
+      textClass = 'text-gray-900 dark:text-gray-100';
+    }
+
+    const senderName = span()
+      .className(`font-medium ${isSystem || isApiResponse || isError ? 'text-blue-600' : isAgent ? 'text-purple-600' : isOwn ? 'text-blue-600' : 'text-gray-800'} dark:text-white`)
+      .text(message.sender.name + senderIcon);
+
+    // Handle different text content based on message type
+    const messageContent = this._formatMessageContent(message);
 
     return div()
-      .className(`message flex ${isOwn ? 'justify-end' : 'justify-start'}`)
+      .className(`message flex ${isOwn ? 'justify-end' : 'justify-start'} ${isSystem || isApiResponse || isError ? 'w-full' : ''}`)
       .set([
         div()
-          .className(`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-            isOwn 
-              ? 'bg-blue-500 text-white' 
-              : isAgent 
-                ? 'bg-purple-100 dark:bg-purple-900' 
-                : 'bg-gray-100 dark:bg-gray-800'
-          }`)
+          .className(`${isSystem || isApiResponse || isError ? 'w-full' : 'max-w-xs lg:max-w-md'} px-4 py-2 rounded-lg ${containerClass}`)
           .set([
             div().className("flex items-baseline space-x-1").set([
               senderName,
               timestamp
             ].filter(Boolean)),
-            messageText
+            div().className(textClass).set([messageContent])
           ])
       ]);
+  }
+
+  _formatMessageContent(message) {
+    // For API responses and system messages, preserve formatting
+    if (message.type === 'api_response' || message.type === 'system' || message.type === 'error') {
+      // Check if text contains code blocks
+      if (message.text.includes('```')) {
+        return this._renderCodeBlocks(message.text);
+      }
+    }
+    
+    return span().text(message.text);
+  }
+
+  _renderCodeBlocks(text) {
+    const parts = text.split(/(```[\s\S]*?```)/g);
+    const elements = [];
+    
+    parts.forEach((part, index) => {
+      if (part.startsWith('```') && part.endsWith('```')) {
+        // Code block
+        const code = part.slice(3, -3).trim();
+        const lines = code.split('\n');
+        const language = lines[0] && !lines[0].includes(' ') ? lines[0] : '';
+        const codeContent = language ? lines.slice(1).join('\n') : code;
+        
+        elements.push(
+          div().className("bg-gray-800 text-gray-100 p-3 rounded mt-2 mb-2 font-mono text-sm overflow-x-auto").set([
+            language && div().className("text-gray-400 text-xs mb-2").text(language),
+            div().text(codeContent)
+          ].filter(Boolean))
+        );
+      } else if (part.trim()) {
+        // Regular text
+        elements.push(span().text(part));
+      }
+    });
+    
+    return div().set(elements);
   }
 
   _updateMessageContainer() {
