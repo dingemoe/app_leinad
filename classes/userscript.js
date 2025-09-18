@@ -9,13 +9,12 @@
 // @require      https://raw.githubusercontent.com/dingemoe/app_leinad/main/classes/render.js
 // ==/UserScript==
 
-(() => {
-    const layout = new leinad_app_render();
 
-    layout.onReady(() => {
+(function() {
+    function runLeinadAppRender() {
+        const layout = new leinad_app_render();
         layout.elem(["cssbear", "style"]);
         layout.elem(["container-root", "div"]);
-
         layout.render([
             ["app_leinad_wrap", {
                 width: "400px",
@@ -28,5 +27,10 @@
                 "<p class='text-gray-300'>Dette er en isolert komponent med tilpasset stil.</p>"
             ]]
         ]);
-    });
+    }
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", runLeinadAppRender);
+    } else {
+        runLeinadAppRender();
+    }
 })();
