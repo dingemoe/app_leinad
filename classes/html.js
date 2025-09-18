@@ -104,7 +104,8 @@ export class Tbody extends El {
   async _fetch(source, param, fn) {
     const data = await resolveSource(source, param);
 
-    // Ikke bruk this.repeat (kan skygge i enkelte miljøer) – push direkte:
+    // Fix: Unngå this.repeat da det kan kollidere med native DOM repeat properties
+    // i enkelte miljøer som Deno playground. Bruk direkte forEach i stedet.
     if (Array.isArray(data)) {
       data.forEach((item, i) => {
         const row = fn(item, i);
