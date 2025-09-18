@@ -33,9 +33,11 @@ Aktiver denne hvis du fortsatt vil la tracer prøve sidekontekstens console:
     try {
       const layout = new leinad_app_render();
        console.log(layout);
-    layout.elem(["beercss", "style"]);
-    layout.elem(["beerjs", "script"]);
+    
+    // Bruk plugin metoden i stedet for manuelle elem calls
+    layout.plugin("beer");  // Laster automatisk beercss + beerjs
     layout.elem(["container-root", "div"]);
+    
     layout.render([
       [
         "app_leinad_wrap",

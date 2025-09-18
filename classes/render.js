@@ -1,5 +1,5 @@
 class leinad_app_render {
-    static VERSION = "1.0.3";
+    static VERSION = "1.1.0";
     static MODIFIED_DATE = "2025-09-18";
     constructor() {
         console.log(`[leinad_app_render] v${leinad_app_render.VERSION} (modified ${leinad_app_render.MODIFIED_DATE})`);
@@ -23,6 +23,26 @@ class leinad_app_render {
     "beercss": "https://cdn.jsdelivr.net/npm/beercss@3.12.7/dist/cdn/beer.min.css",
     "beerjs": "https://cdn.jsdelivr.net/npm/beercss@3.12.7/dist/cdn/beer.min.js",
     "csstailwind": "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
+        };
+
+        // Plugin registry - definerer hvilke elementer hver plugin trenger
+        this.PLUGIN_REGISTRY = {
+            "beer": [
+                ["beercss", "style"],
+                ["beerjs", "script"]
+            ],
+            "tailwind": [
+                ["csstailwind", "style"]
+            ],
+            "jquery": [
+                ["jquery", "script"]
+            ],
+            "vue": [
+                ["vue", "script"]
+            ],
+            "react": [
+                ["react", "script"]
+            ]
         };
     }
 
@@ -65,6 +85,24 @@ class leinad_app_render {
                 break;
         }
         return elem;
+    }
+
+    // Plugin metode for å sette opp komplette plugin-pakker
+    plugin(pluginName) {
+        const pluginElements = this.PLUGIN_REGISTRY[pluginName];
+        
+        if (!pluginElements) {
+            console.warn(`Plugin '${pluginName}' ikke funnet i PLUGIN_REGISTRY. Tilgjengelige plugins:`, Object.keys(this.PLUGIN_REGISTRY));
+            return false;
+        }
+
+        console.log(`Loading plugin: ${pluginName}`);
+        pluginElements.forEach(([name, type]) => {
+            this.elem([name, type]);
+            console.log(`  - Added ${type}: ${name}`);
+        });
+
+        return true;
     }
 
     isValidURL(url) {
