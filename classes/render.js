@@ -1,5 +1,5 @@
 class leinad_app_render {
-    static VERSION = "1.1.0";
+    static VERSION = "1.2.0";
     static MODIFIED_DATE = "2025-09-18";
     constructor() {
         console.log(`[leinad_app_render] v${leinad_app_render.VERSION} (modified ${leinad_app_render.MODIFIED_DATE})`);
@@ -61,6 +61,153 @@ class leinad_app_render {
             fontFamily: "sans-serif",
             padding: "1rem"
         });
+    }
+
+    // ===== CDN REGISTRY CRUD METHODS =====
+    
+    // CREATE/UPDATE CDN resource
+    setCdnResource(name, url) {
+        if (!name || !url) {
+            console.warn("setCdnResource: name og url er påkrevd");
+            return false;
+        }
+        
+        if (!this.isValidURL(url)) {
+            console.warn(`setCdnResource: Ugyldig URL: ${url}`);
+            return false;
+        }
+        
+        this.CDN_REGISTRY[name] = url;
+        console.log(`CDN resource '${name}' lagt til/oppdatert: ${url}`);
+        return true;
+    }
+    
+    // READ CDN resource
+    getCdnResource(name) {
+        return this.CDN_REGISTRY[name] || null;
+    }
+    
+    // READ all CDN resources
+    getAllCdnResources() {
+        return { ...this.CDN_REGISTRY };
+    }
+    
+    // DELETE CDN resource
+    deleteCdnResource(name) {
+        if (this.CDN_REGISTRY[name]) {
+            delete this.CDN_REGISTRY[name];
+            console.log(`CDN resource '${name}' slettet`);
+            return true;
+        }
+        console.warn(`CDN resource '${name}' ikke funnet`);
+        return false;
+    }
+
+    // ===== PLUGIN REGISTRY CRUD METHODS =====
+    
+    // CREATE/UPDATE plugin
+    setPlugin(name, elements) {
+        if (!name || !Array.isArray(elements)) {
+            console.warn("setPlugin: name må være string, elements må være array");
+            return false;
+        }
+        
+        // Valider at alle elementer i plugin eksisterer i CDN_REGISTRY
+        const missingResources = [];
+        elements.forEach(([resourceName, type]) => {
+            if (!this.CDN_REGISTRY[resourceName]) {
+                missingResources.push(resourceName);
+            }
+        });
+        
+        if (missingResources.length > 0) {
+            console.warn(`setPlugin: Følgende CDN ressurser mangler: ${missingResources.join(", ")}`);
+            console.warn("Legg til CDN ressursene først med setCdnResource()");
+            return false;
+        }
+        
+        this.PLUGIN_REGISTRY[name] = elements;
+        console.log(`Plugin '${name}' lagt til/oppdatert med ${elements.length} elementer`);
+        return true;
+    }
+    
+    // READ plugin
+    getPlugin(name) {
+        return this.PLUGIN_REGISTRY[name] || null;
+    }
+    
+    // READ all plugins
+    getAllPlugins() {
+        return { ...this.PLUGIN_REGISTRY };
+    }
+    
+    // DELETE plugin
+    deletePlugin(name) {
+        if (this.PLUGIN_REGISTRY[name]) {
+            delete this.PLUGIN_REGISTRY[name];
+            console.log(`Plugin '${name}' slettet`);
+            return true;
+        }
+        console.warn(`Plugin '${name}' ikke funnet`);
+        return false;
+    }
+
+    // ===== HELPER METHODS FOR REGISTRY MANAGEMENT =====
+    
+    // Bulk import CDN resources
+    importCdnResources(resources) {
+        if (typeof resources !== 'object') {
+            console.warn("importCdnResources: resources må være et objekt");
+            return false;
+        }
+        
+        let imported = 0;
+        Object.entries(resources).forEach(([name, url]) => {
+            if (this.setCdnResource(name, url)) {
+                imported++;
+            }
+        });
+        
+        console.log(`Importerte ${imported}/${Object.keys(resources).length} CDN ressurser`);
+        return imported;
+    }
+    
+    // Bulk import plugins
+    importPlugins(plugins) {
+        if (typeof plugins !== 'object') {
+            console.warn("importPlugins: plugins må være et objekt");
+            return false;
+        }
+        
+        let imported = 0;
+        Object.entries(plugins).forEach(([name, elements]) => {
+            if (this.setPlugin(name, elements)) {
+                imported++;
+            }
+        });
+        
+        console.log(`Importerte ${imported}/${Object.keys(plugins).length} plugins`);
+        return imported;
+    }
+    
+    // List all available resources and plugins
+    listAll() {
+        console.group("🔗 CDN Resources:");
+        Object.entries(this.CDN_REGISTRY).forEach(([name, url]) => {
+            console.log(`  ${name}: ${url}`);
+        });
+        console.groupEnd();
+        
+        console.group("🔌 Plugins:");
+        Object.entries(this.PLUGIN_REGISTRY).forEach(([name, elements]) => {
+            console.log(`  ${name}:`, elements);
+        });
+        console.groupEnd();
+        
+        return {
+            cdn: this.getAllCdnResources(),
+            plugins: this.getAllPlugins()
+        };
     }
 
     // Ny helper-metode for å registrere elementer
