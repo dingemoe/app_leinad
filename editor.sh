@@ -36,6 +36,10 @@ SHOW_DIFF=false
 SHOW_LOG=""
 SHOW_COMMIT=""
 SHOW_LINES=""
+REMOVE_FROM=""
+REMOVE_TO=""
+MULTILINE_OLD=""
+MULTILINE_NEW=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -53,6 +57,8 @@ while [[ $# -gt 0 ]]; do
         --log) SHOW_LOG="$2"; shift 2 ;;
         --show-commit) SHOW_COMMIT="$2"; shift 2 ;;
         --lines) SHOW_LINES="$2"; shift 2 ;;
+        --remove-lines) REMOVE_FROM="$2"; REMOVE_TO="$3"; shift 3 ;;
+        --multiline-replace) MULTILINE_OLD="$2"; MULTILINE_NEW="$3"; shift 3 ;;
         *) UPDATE_VERSION=true; break ;;
     esac
 done
@@ -139,6 +145,61 @@ extract_function() {
     echo "----------------------------------------"
     awk "/$func_name\s*\(/,/^\s*}/" "$file"
     echo "----------------------------------------"
+}
+
+# Remove specific line range
+remove_lines() {
+    local file="$1"
+    local from="$2"
+    local to="$3"
+    
+    echo "🗑️ [$file] Removing lines $from-$to..."
+    sed -i "${from},${to}d" "$file"
+}
+
+# Advanced multiline replace using temporary files
+multiline_replace() {
+    local file="$1"
+    local old_pattern="$2"
+    local new_content="$3"
+    
+    echo "🔄 [$file] Advanced multiline replacement..."
+    
+    # Create temporary files
+    local temp_old="/tmp/editor_old_$$"
+    local temp_new="/tmp/editor_new_$$"
+    local temp_result="/tmp/editor_result_$$"
+    
+    # Write patterns to temp files
+    echo "$old_pattern" > "$temp_old"
+    echo "$new_content" > "$temp_new"
+    
+    # Use Python for complex multiline replacement
+    python3 -c "
+import sys
+with open('$file', 'r') as f:
+    content = f.read()
+with open('$temp_old', 'r') as f:
+    old = f.read().strip()
+with open('$temp_new', 'r') as f:
+    new = f.read().strip()
+    
+result = content.replace(old, new)
+with open('$temp_result', 'w') as f:
+    f.write(result)
+"
+    
+    # Replace original file if successful
+    if [ $? -eq 0 ] && [ -f "$temp_result" ]; then
+        cp "$temp_result" "$file"
+        echo "✓ [$file] Multiline replacement completed"
+    else
+        echo "✗ [$file] Multiline replacement failed"
+        return 1
+    fi
+    
+    # Cleanup
+    rm -f "$temp_old" "$temp_new" "$temp_result"
 }
 
 # Show specific lines from a file  
@@ -265,6 +326,24 @@ if [ -n "$SHOW_LINES" ]; then
         echo "Example: ./editor.sh --file render.js --lines 45,66"
     fi
     exit 0
+fi
+
+# Handle remove lines
+if [ -n "$REMOVE_FROM" ] && [ -n "$REMOVE_TO" ]; then
+    for file in $JS_FILES; do
+        if [ -f "$file" ]; then
+            remove_lines "$file" "$REMOVE_FROM" "$REMOVE_TO"
+        fi
+    done
+fi
+
+# Handle multiline replace
+if [ -n "$MULTILINE_OLD" ] && [ -n "$MULTILINE_NEW" ]; then
+    for file in $JS_FILES; do
+        if [ -f "$file" ]; then
+            multiline_replace "$file" "$MULTILINE_OLD" "$MULTILINE_NEW"
+        fi
+    done
 fi
 
 # Handle specific actions
