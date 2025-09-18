@@ -34,25 +34,8 @@ Aktiver denne hvis du fortsatt vil la tracer prøve sidekontekstens console:
       const layout = new leinad_app_render();
        console.log(layout);
     
-    // ===== DEMO: CRUD for CDN Resources =====
-    // Legg til egendefinerte CDN ressurser
-    layout.setCdnResource("customcss", "https://example.com/my-custom.css");
-    layout.setCdnResource("customjs", "https://example.com/my-custom.js");
-    
-    // ===== DEMO: CRUD for Plugins =====
-    // Opprett en egendefinert plugin som bruker de nye ressursene
-    layout.setPlugin("custom", [
-        ["customcss", "style"],
-        ["customjs", "script"]
-    ]);
-    
-    // List alle tilgjengelige ressurser og plugins
-    console.log("📋 Available resources and plugins:");
-    layout.listAll();
-    
     // Bruk standard plugin + egendefinert plugin
     layout.plugin("beer");     // Standard BeerCSS
-    layout.plugin("custom");   // Din egendefinerte plugin
     layout.elem(["container-root", "div"]);
     
     layout.render([
