@@ -7,7 +7,7 @@
 
 (function (root) {
   class LeinadTracer {
-    static VERSION = "1.3.9";
+    static VERSION = "1.3.10";
     static MODIFIED_DATE = "2025-09-18";
     
     /**

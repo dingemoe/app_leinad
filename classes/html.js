@@ -20,7 +20,7 @@ export class El {
   attr(name, value) { this.props[name] = value; return this; }
   text(txt) { this.children.push(txt); return this; }
 
-  content(children) {
+  set(children) {
     const kids = children || [];
     for (const c of kids) {
       if (c instanceof El) {
@@ -28,6 +28,119 @@ export class El {
       }
       this.children.push(c);
     }
+    return this;
+  }
+
+  // Alias for backwards compatibility
+  content(children) {
+    return this.set(children);
+  }
+
+  listen(callback) {
+    // Set up a ResizeObserver or MutationObserver to watch for changes
+    this.props.ref = (element) => {
+      if (!element) return;
+      
+      // Watch for size changes
+      if (typeof ResizeObserver !== 'undefined') {
+        const resizeObserver = new ResizeObserver((entries) => {
+          for (const entry of entries) {
+            callback({
+              type: 'resize',
+              element,
+              contentRect: entry.contentRect,
+              target: entry.target
+            });
+          }
+        });
+        resizeObserver.observe(element);
+      }
+      
+      // Watch for DOM changes (children, attributes)
+      if (typeof MutationObserver !== 'undefined') {
+        const mutationObserver = new MutationObserver((mutations) => {
+          mutations.forEach((mutation) => {
+            callback({
+              type: 'mutation',
+              element,
+              mutation,
+              target: mutation.target
+            });
+          });
+        });
+        mutationObserver.observe(element, {
+          childList: true,
+          attributes: true,
+          subtree: true
+        });
+      }
+    };
+    return this;
+  }
+
+  remote(wsUrl) {
+    // Set up remote control for input elements via WebSocket
+    this.props.ref = (element) => {
+      if (!element || element.tagName !== 'INPUT') return;
+      
+      const ws = new WebSocket(wsUrl || 'ws://localhost:8080/remote');
+      
+      ws.onopen = () => {
+        console.log('Remote control connected');
+      };
+      
+      ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        
+        switch (data.action) {
+          case 'setValue':
+            element.value = data.value;
+            element.dispatchEvent(new Event('input', { bubbles: true }));
+            break;
+          case 'submit':
+            element.form?.dispatchEvent(new Event('submit', { bubbles: true }));
+            break;
+          case 'focus':
+            element.focus();
+            break;
+          case 'blur':
+            element.blur();
+            break;
+        }
+      };
+      
+      // Send input changes back to remote
+      element.addEventListener('input', (e) => {
+        if (ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'input',
+            value: e.target.value,
+            name: e.target.name
+          }));
+        }
+      });
+      
+      // Handle enter key for submit
+      element.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({
+            type: 'submit',
+            value: e.target.value,
+            name: e.target.name
+          }));
+          // Also trigger actual form submit
+          e.target.form?.dispatchEvent(new Event('submit', { bubbles: true }));
+        }
+      });
+      
+      ws.onerror = (error) => {
+        console.error('Remote control error:', error);
+      };
+      
+      ws.onclose = () => {
+        console.log('Remote control disconnected');
+      };
+    };
     return this;
   }
 
