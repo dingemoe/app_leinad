@@ -13,13 +13,21 @@ class leinad_app_render {
             body: []
         };
 
-        this.CDN_REGISTRY = {
-            jquery: "https://code.jquery.com/jquery-3.6.0.min.js",
-            vue: "https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js",
-            react: "https://unpkg.com/react@18/umd/react.production.min.js",
-            cssbear: "https://cdn.jsdelivr.net/npm/beercss@3.12.7/+esm",
-            csstailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
-        };
+        this.CDN_REGISTRY = {};
+        this._cdnRegistryLoaded = this.loadCDNRegistry();
+    }
+
+    async loadCDNRegistry() {
+        try {
+            const res = await fetch("/classes/cdn_registry.json");
+            if (res.ok) {
+                this.CDN_REGISTRY = await res.json();
+            } else {
+                console.warn("Kunne ikke laste cdn_registry.json, bruker tomt objekt.");
+            }
+        } catch (e) {
+            console.error("Feil ved lasting av cdn_registry.json:", e);
+        }
     }
 
     /**
