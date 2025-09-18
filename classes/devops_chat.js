@@ -336,4 +336,96 @@ export class DevOpsChat {
       ...options
     });
   }
+
+  // KV API Chat for dynamic endpoint management
+  static createKVAPIChat(options = {}) {
+    const kvEndpoints = [
+      {
+        name: 'get',
+        path: '/{name}/{path}',
+        method: 'GET',
+        description: 'Create GET endpoint',
+        params: [
+          { name: 'name', type: 'path', required: true },
+          { name: 'path', type: 'path', required: true }
+        ]
+      },
+      {
+        name: 'post',
+        path: '/{name}/{path}',
+        method: 'POST',
+        description: 'Create POST endpoint',
+        params: [
+          { name: 'name', type: 'path', required: true },
+          { name: 'path', type: 'path', required: true }
+        ]
+      },
+      {
+        name: 'list-endpoints',
+        path: '/api/endpoints',
+        method: 'GET',
+        description: 'List all endpoints',
+        aliases: ['list', 'endpoints']
+      },
+      {
+        name: 'create-endpoint',
+        path: '/api/endpoints',
+        method: 'POST',
+        description: 'Create custom endpoint',
+        params: [
+          { name: 'name', type: 'body', required: true },
+          { name: 'path', type: 'body', required: true },
+          { name: 'method', type: 'body', required: true }
+        ]
+      },
+      {
+        name: 'set-data',
+        path: '/api/data/{key}',
+        method: 'POST',
+        description: 'Store data by key',
+        params: [
+          { name: 'key', type: 'path', required: true },
+          { name: 'data', type: 'body', required: true }
+        ]
+      },
+      {
+        name: 'get-data',
+        path: '/api/data/{key}',
+        method: 'GET',
+        description: 'Get data by key',
+        params: [
+          { name: 'key', type: 'path', required: true }
+        ]
+      },
+      {
+        name: 'generate-token',
+        path: '/api/auth/tokens',
+        method: 'POST',
+        description: 'Generate API token',
+        params: [
+          { name: 'name', type: 'body', required: true }
+        ]
+      }
+    ];
+
+    return DevOpsChat.create({
+      channelId: options.channelName || "kv-api",
+      devopsConfig: {
+        baseUrl: options.kvServerUrl || 'http://localhost:3000',
+        endpoints: kvEndpoints
+      },
+      theme: options.theme || 'dracula',
+      ...options
+    });
+  }
+
+  // GitHub Chat shorthand
+  static createGitHubChat(options = {}) {
+    return DevOpsChat.createGitHub({
+      channelId: options.channelName || "github-ops",
+      owner: options.owner || 'dingemoe',
+      repo: options.repo || 'app_leinad',
+      ...options
+    });
+  }
 }

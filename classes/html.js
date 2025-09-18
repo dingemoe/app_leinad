@@ -383,6 +383,18 @@ export const main = () => new Main();
 export const img = () => new Img();
 export const form = (source, builderFn) => new Form(source, builderFn);
 
+/* ===== Factory pattern for React compatibility ===== */
+
+// Factory function to avoid React error #31
+export const factory = (fn) => fn;
+
+// Server render function
+export const render = (element) => {
+  return new Response(renderToString(React.createElement(() => element.toReact())), {
+    headers: { "Content-Type": "text/html" }
+  });
+};
+
 /* ===== Theme method injection ===== */
 
 function installThemeMethod(name) {
