@@ -33,7 +33,8 @@ Aktiver denne hvis du fortsatt vil la tracer prøve sidekontekstens console:
     try {
       const layout = new leinad_app_render();
        console.log(layout);
-    layout.elem(["cssbear", "style"]);
+    layout.elem(["beercss", "style"]);
+    layout.elem(["beerjs", "script"]);
     layout.elem(["container-root", "div"]);
     layout.render([
       [

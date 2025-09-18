@@ -1,5 +1,5 @@
 class leinad_app_render {
-    static VERSION = "1.0.2";
+    static VERSION = "1.0.3";
     static MODIFIED_DATE = "2025-09-18";
     constructor() {
         console.log(`[leinad_app_render] v${leinad_app_render.VERSION} (modified ${leinad_app_render.MODIFIED_DATE})`);
@@ -17,11 +17,12 @@ class leinad_app_render {
         };
 
         this.CDN_REGISTRY = {
-            jquery: "https://code.jquery.com/jquery-3.6.0.min.js",
-            vue: "https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js",
-            react: "https://unpkg.com/react@18/umd/react.production.min.js",
-            cssbear: "https://cdn.jsdelivr.net/npm/beercss@3.12.7/dist/cdn/beer.min.css",
-            csstailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
+    "jquery": "https://code.jquery.com/jquery-3.6.0.min.js",
+    "vue": "https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js",
+    "react": "https://unpkg.com/react@18/umd/react.production.min.js",
+    "beercss": "https://cdn.jsdelivr.net/npm/beercss@3.12.7/dist/cdn/beer.min.css",
+    "beerjs": "https://cdn.jsdelivr.net/npm/beercss@3.12.7/dist/cdn/beer.min.js",
+    "csstailwind": "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
         };
     }
 
