@@ -7,6 +7,8 @@
 
 (function (root) {
   class LeinadTracer {
+    static VERSION = "1.0.1";
+    static MODIFIED_DATE = "2025-09-18";
     
     /**
      * @param {Object} opts

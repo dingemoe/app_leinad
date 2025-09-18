@@ -5,22 +5,34 @@
 // @description  Shadow DOM UI + snapshot-logging (GM + events) til Deno KV via tracer.js
 // @author       Daniel
 // @match        *://*/*
+// @grant        GM_info
 // @grant        unsafeWindow
 // @require      https://raw.githubusercontent.com/dingemoe/app_leinad/main/classes/render.js
 // @require      https://raw.githubusercontent.com/dingemoe/app_leinad/main/classes/tracer.js
 // ==/UserScript==
 
+/*
+
+Aktiver denne hvis du fortsatt vil la tracer prøve sidekontekstens console:
+// // @grant        unsafeWindow
+
+*/
+
 (function () {
+    console.log("Start");
   const tracer = new LeinadTracer({
     apiBase: "https://leinad-log.deno.dev",
     flushMs: 800,
-    // Om du fortsatt får “getter only”-feil før tracer.js er oppdatert:
+    // Hvis du vil tvinge av console-hook uansett:
     // hookConsole: false,
   });
 
   tracer.start(({ logEvent }) => {
+       console.log("trace");
     // Din UI-kode
-    const layout = new leinad_app_render();
+    try {
+      const layout = new leinad_app_render();
+       console.log(layout);
     layout.elem(["cssbear", "style"]);
     layout.elem(["container-root", "div"]);
     layout.render([
@@ -41,7 +53,10 @@
         ],
       ],
     ]);
-
+    console.log("ready?",layout);
     logEvent("app_ready");
+    } catch(err) {
+        console.log("Catch error", err);
+    }
   });
 })();
