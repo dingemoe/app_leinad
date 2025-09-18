@@ -7,8 +7,6 @@
 
 (function (root) {
   class LeinadTracer {
-    static VERSION = "1.0.0";
-    static MODIFIED_DATE = "2025-09-18";
     constructor(opts = {}) {
       console.log(`[Tracer] v${LeinadTracer.VERSION} (modified ${LeinadTracer.MODIFIED_DATE})`);
     /**
