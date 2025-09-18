@@ -1,8 +1,33 @@
-# app_leinad
+# App Leinad Framework 🚀
 
-Et modulært React-basert UI framework med tema støtte, asyncrone komponenter og real-time chat.
+Et modulært React-basert UI framework med tema støtte, asyncrone komponenter, real-time chat og KV-basert API management.
 
-## Funksjoner
+## 🎯 Hovedfunksjoner
+
+### 🚀 KV API System (Nytt!)
+Komplett system for dynamisk API management via DevOps chat:
+- **Dynamic endpoints**: Opprett API endpoints via chat commands
+- **KV storage**: Persistent data lagring med Deno KV
+- **DevOps chat**: Administrer API via slash commands
+- **Authentication**: Token-basert API sikkerhet
+- **Real-time**: Live endpoint creation og management
+
+```bash
+# Start KV API server
+deno run --allow-net --allow-read --allow-write deno_kv_api_server.js
+
+# Start DevOps chat interface
+deno run --allow-net kv_devops_example.js
+
+# Create endpoints via chat
+/get users /api/users
+/post orders /api/orders  
+/set-data config {"theme":"dark"}
+```
+
+📖 **Se [KV_API_README.md](./KV_API_README.md) for fullstendig dokumentasjon.**
+
+## 🔧 Core Komponenter
 
 ### Core HTML Komponenter (`classes/html.js`)
 - **El klasse**: Base klasse for alle HTML elementer
