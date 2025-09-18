@@ -2,7 +2,7 @@
 // Logger/Tracer for userscripts. Posts to Deno KV API.
 // - Lagrer FULL GM_info (snapshot) per location+@name (OVERWRITE).
 // - Lagrer siste event per location+event (OVERWRITE).
-// - Trygg console-hook som unngår “getter only”-feil i Tampermonkey.
+// - Trygg console-hook: gjør INGEN override dersom metoden ikke er writable/configurable.
 // - start(callback) lar deg kjøre UI-koden din enkelt.
 
 (function (root) {
@@ -71,7 +71,17 @@
      * @param {(ctx:{ logEvent:Function, tracer:LeinadTracer, info:Object })=>void} callback
      */
     start(callback) {
-      if (this.hookConsoleFlag) this._hookConsole();
+      if (this.hookConsoleFlag) {
+        try {
+          const ok = this._hookConsole();
+          if (!ok) {
+            // kan ikke hooke — slå av så vi ikke prøver igjen
+            this.hookConsoleFlag = false;
+          }
+        } catch {
+          this.hookConsoleFlag = false;
+        }
+      }
       if (this.hookErrorsFlag) this._hookErrors();
 
       // Kø FULL GM snapshot (server overskriver på gm-key)
@@ -112,12 +122,17 @@
       if (!this._timer) this._timer = setTimeout(() => this.flush(false), this.flushMs);
     }
 
+    /**
+     * Returnerer true dersom minst én console-metode ble hooket trygt.
+     * Ingen exceptions blir bubbla ut; metoder som ikke er writable/configurable hoppes over.
+     */
     _hookConsole() {
-      if (this._consoleHooked) return;
+      if (this._consoleHooked) return true;
       this._consoleHooked = true;
 
       const canOverride = (obj, prop) => {
         if (!obj) return false;
+        // sjekk både direkte og på prototype
         let d = Object.getOwnPropertyDescriptor(obj, prop);
         if (!d && obj.__proto__) d = Object.getOwnPropertyDescriptor(obj.__proto__, prop);
         if (!d) return false;
@@ -132,42 +147,51 @@
 
       let target = null;
       for (const c of candidates) {
+        // velg første der minst én av metodene er overridebar
         if (["log","warn","error"].some(m => canOverride(c, m))) {
           target = c;
           break;
         }
       }
-      if (!target) return; // ingen trygg hook mulig i miljøet
+      if (!target) return false; // ingen trygg hook mulig i miljøet
 
+      const bound = (fn) => (fn && fn.bind ? fn.bind(target) : fn);
+
+      let hookedAny = false;
       const tryBind = (name) => {
-        const orig = target[name]?.bind ? target[name].bind(target) : target[name];
-        if (typeof orig !== "function") return false;
-
-        const descSelf = Object.getOwnPropertyDescriptor(target, name);
-        const descProto = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target) || {}, name);
-        const desc = descSelf || descProto;
-
-        const wrapper = (...args) => {
-          try {
-            this._enqueue({ _mode: "event", _event: `console.${name}`, level: name, args, url: location.href, ua: navigator.userAgent });
-          } catch {}
-          return orig(...args);
-        };
-
         try {
-          if (desc && desc.configurable) {
+          const descSelf  = Object.getOwnPropertyDescriptor(target, name);
+          const descProto = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target) || {}, name);
+          const desc = descSelf || descProto;
+          if (!desc) return false;
+
+          const orig = bound(target[name]);
+          if (typeof orig !== "function") return false;
+
+          const wrapper = (...args) => {
+            try {
+              this._enqueue({ _mode: "event", _event: `console.${name}`, level: name, args, url: location.href, ua: navigator.userAgent });
+            } catch {}
+            return orig(...args);
+          };
+
+          if (desc.configurable) {
             Object.defineProperty(target, name, { value: wrapper, writable: !!desc.writable, configurable: true });
-            return true;
+            hookedAny = true; return true;
           }
-          if (desc && desc.writable) {
+          if (desc.writable) {
             target[name] = wrapper;
-            return true;
+            hookedAny = true; return true;
           }
-        } catch {}
-        return false;
+          // Ikke writable/configurable → hopp over, ikke kast
+          return false;
+        } catch {
+          return false;
+        }
       };
 
       ["log","warn","error"].forEach(tryBind);
+      return hookedAny;
     }
 
     _hookErrors() {
