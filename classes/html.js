@@ -1,5 +1,6 @@
 // classes/html.js
 import React from "https://esm.sh/react@18.3.1";
+import { renderToString } from "https://esm.sh/react-dom@18.3.1/server";
 import {
   applyThemeProps,
   getDefaultTheme,
@@ -68,6 +69,40 @@ export async function renderApp(appInstance) {
   if (!root._theme) root._theme = getDefaultTheme();
   await awaitAll(root);
   return root.build();
+}
+
+/* ===== Server render function ===== */
+
+export async function render(appInstance, options = {}) {
+  const {
+    title = "App",
+    charset = "utf-8",
+    viewport = "width=device-width, initial-scale=1",
+    scripts = ["https://cdn.tailwindcss.com"],
+    styles = [],
+    bodyClass = "antialiased",
+    headers = { "content-type": "text/html; charset=utf-8" }
+  } = options;
+
+  const html = renderToString(await renderApp(appInstance));
+  
+  const scriptTags = scripts.map(src => `<script src="${src}"></script>`).join('\n          ');
+  const styleTags = styles.map(href => `<link rel="stylesheet" href="${href}">`).join('\n          ');
+  
+  return new Response(
+    "<!DOCTYPE html>" +
+      `<html>
+        <head>
+          <meta charset="${charset}" />
+          <meta name="viewport" content="${viewport}" />
+          <title>${title}</title>
+          ${styleTags}
+          ${scriptTags}
+        </head>
+        <body class="${bodyClass}">${html}</body>
+      </html>`,
+    { headers }
+  );
 }
 
 /* ===== Async helpers ===== */
