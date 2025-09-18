@@ -7,26 +7,22 @@ import {
   onThemeRegistered,
 } from "./theme.js";
 
-/* =========================
-   Base & utilities
-   ========================= */
+/* ===== Base & utilities ===== */
 
 export class El {
   tag; props = {}; children = []; _ready = null; _theme = null;
 
   constructor(tag) { this.tag = tag; }
 
-  // chaining
   id(id) { this.props.id = id; return this; }
   className(cls) { this.props.className = cls; return this; }
   attr(name, value) { this.props[name] = value; return this; }
   text(txt) { this.children.push(txt); return this; }
+
   content(children) {
-    // sørg for tema-arv når vi legger inn barn
     const kids = children || [];
     for (const c of kids) {
       if (c instanceof El) {
-        // arve fra this hvis barnet ikke har eksplisitt tema
         if (!c._theme) c._theme = this._theme || c._theme || null;
       }
       this.children.push(c);
@@ -34,30 +30,21 @@ export class El {
     return this;
   }
 
-  /** Sett tema eksplisitt på dette elementet (og barn via arv) */
   theme(name) { this._theme = name; return this; }
 
-  /** bygd React element – tema påføres her, og sendes rekursivt nedover */
   build() {
-    // velg tema (eksplisitt eller default)
     const themeName = this._theme || getDefaultTheme();
-
-    // bygg barn først (så de kan få arv + sine egne props)
     const builtChildren = this.children.map((c) =>
       c instanceof El ? c.build()
       : (c && c.tag && c.props)
         ? React.createElement(c.tag, c.props, ...(c.children ?? []))
         : c
     );
-
-    // påfør theme-props (klasser/attrs) ut fra tag
     const themedProps = themeName ? applyThemeProps(this.tag, this.props, themeName) : this.props;
-
     return React.createElement(this.tag, themedProps, ...builtChildren);
   }
 }
 
-// Vent rekursivt på alle _ready-promiser i treet
 async function awaitAll(el) {
   if (!el) return;
   if (el instanceof Promise) el = await el;
@@ -69,7 +56,6 @@ async function awaitAll(el) {
   if (el && Array.isArray(el.children)) {
     for (const c of el.children) {
       if (c instanceof El) {
-        // arv av tema nedover om ikke satt
         if (!c._theme) c._theme = el._theme || c._theme || null;
         await awaitAll(c);
       }
@@ -77,18 +63,14 @@ async function awaitAll(el) {
   }
 }
 
-// Kall denne i Deno-appen før renderToString
 export async function renderApp(appInstance) {
-  const root = appInstance.render();   // forventer et El
-  // dersom root ikke har tema -> bruk default
+  const root = appInstance.render();
   if (!root._theme) root._theme = getDefaultTheme();
-  await awaitAll(root);                 // ✅ vent på alle async barns _ready
+  await awaitAll(root);
   return root.build();
 }
 
-/* =========================
-   Special components (async)
-   ========================= */
+/* ===== Async helpers ===== */
 
 async function resolveSource(source, param) {
   if (typeof source === "string") {
@@ -103,7 +85,8 @@ async function resolveSource(source, param) {
   return [];
 }
 
-// <tbody> med fleksibel signatur
+/* ===== Special components ===== */
+
 export class Tbody extends El {
   constructor(source, paramOrFn, maybeFn) {
     super("tbody");
@@ -120,11 +103,20 @@ export class Tbody extends El {
 
   async _fetch(source, param, fn) {
     const data = await resolveSource(source, param);
-    this.repeat(data, fn);
+
+    // Ikke bruk this.repeat (kan skygge i enkelte miljøer) – push direkte:
+    if (Array.isArray(data)) {
+      data.forEach((item, i) => {
+        const row = fn(item, i);
+        this.children.push(row instanceof El ? row : row);
+      });
+    } else if (data && typeof data === "object") {
+      const row = fn(data, 0);
+      this.children.push(row instanceof El ? row : row);
+    }
   }
 }
 
-// <form> med datasource + lette event helpers
 export class Form extends El {
   constructor(source, builderFn) {
     super("form");
@@ -156,7 +148,6 @@ export class Form extends El {
         (e.currentTarget && e.currentTarget.tagName === "FORM") ? e.currentTarget : null;
 
       const data = formEl ? Form._snapshot(formEl) : {};
-      // berik eventet
       e.data = data;
       e.json = () => JSON.stringify(Form._snapshot(formEl));
 
@@ -185,9 +176,7 @@ export class Form extends El {
   }
 }
 
-/* =========================
-   Element classes
-   ========================= */
+/* ===== Element classes ===== */
 
 export class Div extends El { constructor(){ super("div"); } }
 export class Span extends El { constructor(){ super("span"); } }
@@ -215,9 +204,7 @@ export class Main extends El { constructor(){ super("main"); } }
 export class Img extends El { constructor(){ super("img"); } }
 export class Tfoot extends El { constructor(){ super("tfoot"); } }
 
-/* =========================
-   Factories
-   ========================= */
+/* ===== Factories ===== */
 
 export const div = () => new Div();
 export const span = () => new Span();
@@ -247,11 +234,8 @@ export const main = () => new Main();
 export const img = () => new Img();
 export const form = (source, builderFn) => new Form(source, builderFn);
 
-/* =========================
-   Theme: dynamiske metoder
-   ========================= */
+/* ===== Theme method injection ===== */
 
-/** Installer .<themeName>() helpers på El.prototype, f.eks. .light(), .dracula() */
 function installThemeMethod(name) {
   if (!name || El.prototype[name]) return;
   Object.defineProperty(El.prototype, name, {
@@ -259,7 +243,5 @@ function installThemeMethod(name) {
     enumerable: false,
   });
 }
-// legg til for eksisterende themes
 getThemes().forEach(installThemeMethod);
-// og for fremtidige registreringer
 onThemeRegistered((name) => installThemeMethod(name));
