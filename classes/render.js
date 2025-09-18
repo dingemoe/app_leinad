@@ -1,5 +1,6 @@
 class leinad_app_render {
     static MODIFIED_DATE = "2025-09-18";
+    static MODIFIED_DATE = "2025-09-18";
     constructor() {
         console.log(`[leinad_app_render] v${leinad_app_render.VERSION} (modified ${leinad_app_render.MODIFIED_DATE})`);
         this.host = document.createElement("div");
