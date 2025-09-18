@@ -15,59 +15,6 @@ class leinad_app_render {
             padding: "1rem"
         });
     }
-    /**
-     * CRUD-operasjoner på cdn_registry.json
-     * @param {"get"|"add"|"update"|"delete"} action
-     * @param {string} [key] CDN-navn
-     * @param {string} [url] CDN-url (for add/update)
-     * @returns {Promise<object|boolean>} Resultat eller suksess
-     */
-    async crudCDNRegistry(action, key, url) {
-        const endpoint = "https://raw.githubusercontent.com/dingemoe/app_leinad/main/classes/cdn_registry.json";
-        switch (action) {
-            case "get": {
-                const res = await fetch(endpoint);
-                if (!res.ok) throw new Error("Kunne ikke hente registry");
-                return await res.json();
-            }
-            case "add": {
-                // Forutsetter at server støtter POST/PUT
-                const registry = await this.crudCDNRegistry("get");
-                if (registry[key]) throw new Error("CDN finnes allerede");
-                registry[key] = url;
-                const res = await fetch(endpoint, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(registry)
-                });
-                return res.ok;
-            }
-            case "update": {
-                const registry = await this.crudCDNRegistry("get");
-                if (!registry[key]) throw new Error("CDN finnes ikke");
-                registry[key] = url;
-                const res = await fetch(endpoint, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(registry)
-                });
-                return res.ok;
-            }
-            case "delete": {
-                const registry = await this.crudCDNRegistry("get");
-                if (!registry[key]) throw new Error("CDN finnes ikke");
-                delete registry[key];
-                const res = await fetch(endpoint, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify(registry)
-                });
-                return res.ok;
-            }
-            default:
-                throw new Error("Ugyldig action");
-        }
-    }
     constructor() {
         this.host = document.createElement("div");
         this.host.setAttribute("id", "leinad_app_host");
