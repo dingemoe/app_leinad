@@ -1,3 +1,7 @@
+  static VERSION = "1.0.0";
+  static MODIFIED_DATE = "2025-09-18";
+  constructor(...args) {
+    console.log(`[Tracer] v${Tracer.VERSION} (modified ${Tracer.MODIFIED_DATE})`);
 // classes/tracer.js
 // Logger/Tracer for userscripts. Posts to Deno KV API.
 // - Lagrer FULL GM_info (snapshot) per location+@name (OVERWRITE).
