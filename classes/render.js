@@ -42,29 +42,6 @@ class leinad_app_render {
         });
     }
 
-    constructor() {
-        this.host = document.createElement("div");
-        this.host.setAttribute("id", "leinad_app_host");
-        this.shadow = this.host.attachShadow({ mode: "open" });
-
-        this.wrap = document.createElement("div");
-        this.wrap.setAttribute("id", "app_leinad_wrap");
-        this.applyDefaultStyles(this.wrap);
-
-        this.elements = {
-            head: [],
-            body: []
-        };
-
-        this.CDN_REGISTRY = {
-            jquery: "https://code.jquery.com/jquery-3.6.0.min.js",
-            vue: "https://cdn.jsdelivr.net/npm/vue@3.3.4/dist/vue.global.prod.js",
-            react: "https://unpkg.com/react@18/umd/react.production.min.js",
-            cssbear: "https://cdn.jsdelivr.net/npm/beercss@3.12.7/+esm",
-            csstailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
-        };
-    }
-
     // Ny helper-metode for å registrere elementer
     elem([name, type]) {
         let elem;

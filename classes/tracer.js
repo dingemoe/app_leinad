@@ -24,20 +24,20 @@
       this.flushMs = typeof opts.flushMs === "number" ? opts.flushMs : 800;
       this.hookConsoleFlag = opts.hookConsole !== false;
       this.hookErrorsFlag = opts.hookErrors !== false;
-
-      // Full GM_info snapshot (gjør den JSON-safe)
-      const gm = (typeof GM_info !== "undefined" && GM_info) ? safeClone(GM_info) : null;
-
-      const scriptName = gm?.script?.name || "leinad-app";
-      this.appName = opts.appName || scriptName;
-      this.loc = opts.location || (typeof location !== "undefined" ? (location.hostname || "unknown") : "unknown");
-
-      this.scriptMeta = gm?.script || null; // flatten
-      this.gmFull = gm;                      // full GM_info
-
-      this._q = [];
-      this._timer = null;
-
+// 
+//       // Full GM_info snapshot (gjør den JSON-safe)
+//       const gm = (typeof GM_info !== "undefined" && GM_info) ? safeClone(GM_info) : null;
+// 
+//       const scriptName = gm?.script?.name || "leinad-app";
+//       this.appName = opts.appName || scriptName;
+//       this.loc = opts.location || (typeof location !== "undefined" ? (location.hostname || "unknown") : "unknown");
+// 
+//       this.scriptMeta = gm?.script || null; // flatten
+//       this.gmFull = gm;                      // full GM_info
+// 
+//       this._q = [];
+//       this._timer = null;
+// 
       this.logEvent = this.logEvent.bind(this);
       this.log = this.log.bind(this);
       this.warn = this.warn.bind(this);

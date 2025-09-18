@@ -1,33 +1,339 @@
 #!/bin/bash
-# Oppdaterer versjonsnummer og modified date i render.js og tracer.js
-# Bruk: ./update_classmeta.sh <versjon>
+# Universal JS editor for render.js and tracer.js
+# Auto-increments version, validates syntax, commits and pushes to repo
+# Usage: 
+#   ./editor.sh --file render.js --reset         (git checkout specific file)
+#   ./editor.sh --file tracer.js --check         (validate syntax only)
+#   ./editor.sh --file render.js --comment 10 20 (comment lines 10-20)
+#   ./editor.sh --file render.js --uncomment 10 20 (uncomment lines 10-20)
+#   ./editor.sh --file render.js --extract-function "methodName" (show function code)
+#   ./editor.sh --file render.js --add-method "name" "code" (add method)
+#   ./editor.sh --file render.js --replace "old" "new" (replace text)
+#   ./editor.sh --update                         (auto-increment version both files)
+#   ./editor.sh --history                        (show git commit history)
+#   ./editor.sh --diff                           (show current changes vs last commit)
+#   ./editor.sh --log 5                          (show last 5 commits)
+#   ./editor.sh --show-commit abc123             (show specific commit changes)
 
 set -e
 
-VERSION="$1"
-DATE="$(date +%Y-%m-%d)"
+# Parse flags
+RESET=false
+CHECK_ONLY=false
+COMMENT_FROM=""
+COMMENT_TO=""
+UNCOMMENT_FROM=""
+UNCOMMENT_TO=""
+EXTRACT_FUNC=""
+ADD_METHOD_NAME=""
+ADD_METHOD_CODE=""
+REPLACE_OLD=""
+REPLACE_NEW=""
+UPDATE_VERSION=false
+TARGET_FILE=""
+SHOW_HISTORY=false
+SHOW_DIFF=false
+SHOW_LOG=""
+SHOW_COMMIT=""
+SHOW_LINES=""
 
-
-for FILE in classes/render.js classes/tracer.js; do
-  if [ -f "$FILE" ]; then
-    # Sjekk om static VERSION finnes
-    if grep -q "static VERSION =" "$FILE"; then
-      sed -i "s/^\s*static VERSION = \"[^"]*\";/    static VERSION = \"$VERSION\";/" "$FILE"
-    else
-      # Sett inn etter class-linjen
-      sed -i "/^class /a \\    static VERSION = \"$VERSION\";" "$FILE"
-    fi
-    # Sjekk om static MODIFIED_DATE finnes
-    if grep -q "static MODIFIED_DATE =" "$FILE"; then
-      sed -i "s/^\s*static MODIFIED_DATE = \"[^"]*\";/    static MODIFIED_DATE = \"$DATE\";/" "$FILE"
-    else
-      sed -i "/^class /a \\    static MODIFIED_DATE = \"$DATE\";" "$FILE"
-    fi
-    echo "Oppdatert $FILE til v$VERSION ($DATE)"
-  fi
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --file) TARGET_FILE="classes/$2"; shift 2 ;;
+        --reset) RESET=true; shift ;;
+        --check) CHECK_ONLY=true; shift ;;
+        --comment) COMMENT_FROM="$2"; COMMENT_TO="$3"; shift 3 ;;
+        --uncomment) UNCOMMENT_FROM="$2"; UNCOMMENT_TO="$3"; shift 3 ;;
+        --extract-function) EXTRACT_FUNC="$2"; shift 2 ;;
+        --add-method) ADD_METHOD_NAME="$2"; ADD_METHOD_CODE="$3"; shift 3 ;;
+        --replace) REPLACE_OLD="$2"; REPLACE_NEW="$3"; shift 3 ;;
+        --update) UPDATE_VERSION=true; shift ;;
+        --history) SHOW_HISTORY=true; shift ;;
+        --diff) SHOW_DIFF=true; shift ;;
+        --log) SHOW_LOG="$2"; shift 2 ;;
+        --show-commit) SHOW_COMMIT="$2"; shift 2 ;;
+        --lines) SHOW_LINES="$2"; shift 2 ;;
+        *) UPDATE_VERSION=true; break ;;
+    esac
 done
 
-# Legg til, commit og push endringene til git
-git add classes/render.js classes/tracer.js
-git commit -m "Oppdater versjon til v$VERSION ($DATE) automatisk via update_classmeta.sh"
-git push
+DATE="$(date +%Y-%m-%d)"
+ALL_JS_FILES="classes/render.js classes/tracer.js"
+
+# Determine which files to work with
+if [ -n "$TARGET_FILE" ]; then
+    if [[ "$TARGET_FILE" == "classes/render.js" || "$TARGET_FILE" == "classes/tracer.js" ]]; then
+        JS_FILES="$TARGET_FILE"
+    else
+        echo "❌ Error: --file must be 'render.js' or 'tracer.js'"
+        exit 1
+    fi
+else
+    JS_FILES="$ALL_JS_FILES"
+fi
+
+# Auto-increment version number
+auto_increment_version() {
+    local file="$1"
+    if grep -q "static VERSION =" "$file"; then
+        local current_version=$(grep "static VERSION =" "$file" | sed 's/.*"\([^"]*\)".*/\1/')
+        local major=$(echo $current_version | cut -d. -f1)
+        local minor=$(echo $current_version | cut -d. -f2)
+        local patch=$(echo $current_version | cut -d. -f3)
+        patch=$((patch + 1))
+        echo "$major.$minor.$patch"
+    else
+        echo "1.0.0"
+    fi
+}
+
+# Validate JS syntax
+validate_js() {
+    local file="$1"
+    echo "🔍 Validating $file..."
+    if node -c "$file" 2>/dev/null; then
+        echo "✓ [$file] Syntax OK"
+        return 0
+    else
+        echo "✗ [$file] Syntax ERROR:"
+        node -c "$file"
+        return 1
+    fi
+}
+
+# Reset files to clean state
+reset_files() {
+    if [ -n "$TARGET_FILE" ]; then
+        echo "🔄 [$TARGET_FILE] Resetting to clean state..."
+        git checkout "$TARGET_FILE"
+    else
+        echo "🔄 [ALL] Resetting JS files to clean state..."
+        git checkout $ALL_JS_FILES
+    fi
+    echo "✓ Files reset"
+}
+
+# Comment lines in file
+comment_lines() {
+    local file="$1"
+    local from="$2"
+    local to="$3"
+    echo "💬 [$file] Commenting lines $from-$to..."
+    sed -i "${from},${to}s/^/\/\/ /" "$file"
+}
+
+# Uncomment lines in file  
+uncomment_lines() {
+    local file="$1"
+    local from="$2"
+    local to="$3"
+    echo "🗨️ [$file] Uncommenting lines $from-$to..."
+    sed -i "${from},${to}s/^\/\/ //" "$file"
+}
+
+# Extract function from file
+extract_function() {
+    local file="$1"
+    local func_name="$2"
+    echo "🔍 [$file] Extracting function '$func_name':"
+    echo "----------------------------------------"
+    awk "/$func_name\s*\(/,/^\s*}/" "$file"
+    echo "----------------------------------------"
+}
+
+# Show specific lines from a file  
+show_lines() {
+    local file="$1"
+    local lines="$2"
+    
+    if [[ ! -f "$file" ]]; then
+        echo "❌ Error: File $file not found"
+        return 1
+    fi
+    
+    echo "📄 [${file##*/}] Lines $lines:"
+    echo "=========================================="
+    
+    # Handle different line range formats: 45,66 or 10-20 or just 15
+    if [[ "$lines" =~ ^[0-9]+,[0-9]+$ ]]; then
+        # Format: 45,66
+        sed -n "${lines}p" "$file" | nl -ba -v${lines%,*}
+    elif [[ "$lines" =~ ^[0-9]+-[0-9]+$ ]]; then
+        # Format: 10-20
+        local start=${lines%-*}
+        local end=${lines#*-}
+        sed -n "${start},${end}p" "$file" | nl -ba -v$start
+    elif [[ "$lines" =~ ^[0-9]+$ ]]; then
+        # Format: just 15
+        sed -n "${lines}p" "$file" | nl -ba -v$lines
+    else
+        echo "❌ Error: Invalid line format. Use: 45,66 or 10-20 or 15"
+        return 1
+    fi
+    
+    echo "=========================================="
+}
+
+# Show git history and changes
+show_history() {
+    echo "📚 [REPO] Git commit history for JS files:"
+    echo "=========================================="
+    git log --oneline --follow classes/render.js classes/tracer.js | head -20
+    echo "=========================================="
+}
+
+show_diff() {
+    echo "📝 [REPO] Current changes vs last commit:"
+    echo "=========================================="
+    git diff classes/render.js classes/tracer.js
+    echo "=========================================="
+}
+
+show_log() {
+    local count="$1"
+    echo "📜 [REPO] Last $count commits:"
+    echo "=========================================="
+    git log --oneline -n "$count" --pretty=format:"%h %ad %s" --date=short
+    echo ""
+    echo "=========================================="
+}
+
+show_commit() {
+    local commit_hash="$1"
+    echo "🔍 [REPO] Changes in commit $commit_hash:"
+    echo "=========================================="
+    git show "$commit_hash" -- classes/render.js classes/tracer.js
+    echo "=========================================="
+}
+
+# Update version and date  
+update_metadata() {
+    local file="$1"
+    local version="$2"
+    
+    # Remove any existing static VERSION/MODIFIED_DATE duplicates first
+    sed -i '/^\s*static VERSION =/d' "$file"
+    sed -i '/^\s*static MODIFIED_DATE =/d' "$file"
+    
+    # Add fresh versions after class line
+    sed -i "/^class /a \\    static VERSION = \"$version\";" "$file"
+    sed -i "/^class /a \\    static MODIFIED_DATE = \"$DATE\";" "$file"
+}
+
+case "$RESET$CHECK_ONLY$COMMENT_FROM$UNCOMMENT_FROM$EXTRACT_FUNC$ADD_METHOD_NAME$REPLACE_OLD$UPDATE_VERSION$SHOW_HISTORY$SHOW_DIFF$SHOW_LOG$SHOW_COMMIT" in
+    "true"*) 
+        reset_files
+        exit 0
+        ;;
+    *"true"*)
+        for file in $JS_FILES; do
+            if [ -f "$file" ]; then
+                validate_js "$file"
+            fi
+        done
+        exit 0
+        ;;
+esac
+
+# Handle git history commands
+if [ "$SHOW_HISTORY" = true ]; then
+    show_history
+    exit 0
+fi
+
+if [ "$SHOW_DIFF" = true ]; then
+    show_diff
+    exit 0
+fi
+
+if [ -n "$SHOW_LOG" ]; then
+    show_log "$SHOW_LOG"
+    exit 0
+fi
+
+if [ -n "$SHOW_COMMIT" ]; then
+    show_commit "$SHOW_COMMIT"
+    exit 0
+fi
+
+if [ -n "$SHOW_LINES" ]; then
+    # Determine which file to show lines from
+    if [ -n "$TARGET_FILE" ]; then
+        show_lines "$TARGET_FILE" "$SHOW_LINES"
+    else
+        echo "❌ Error: --lines requires --file parameter to specify which file"
+        echo "Example: ./editor.sh --file render.js --lines 45,66"
+    fi
+    exit 0
+fi
+
+# Handle specific actions
+if [ -n "$COMMENT_FROM" ] && [ -n "$COMMENT_TO" ]; then
+    for file in $JS_FILES; do
+        if [ -f "$file" ]; then
+            comment_lines "$file" "$COMMENT_FROM" "$COMMENT_TO"
+        fi
+    done
+fi
+
+if [ -n "$UNCOMMENT_FROM" ] && [ -n "$UNCOMMENT_TO" ]; then
+    for file in $JS_FILES; do
+        if [ -f "$file" ]; then
+            uncomment_lines "$file" "$UNCOMMENT_FROM" "$UNCOMMENT_TO"
+        fi
+    done
+fi
+
+if [ -n "$EXTRACT_FUNC" ]; then
+    for file in $JS_FILES; do
+        if [ -f "$file" ]; then
+            extract_function "$file" "$EXTRACT_FUNC"
+        fi
+    done
+    exit 0
+fi
+
+if [ -n "$ADD_METHOD_NAME" ] && [ -n "$ADD_METHOD_CODE" ]; then
+    for file in $JS_FILES; do
+        if [ -f "$file" ]; then
+            echo "    $ADD_METHOD_CODE" >> "$file.tmp"
+            echo "" >> "$file.tmp"
+            sed '/^}$/d' "$file" >> "$file.tmp"
+            echo "}" >> "$file.tmp"
+            mv "$file.tmp" "$file"
+        fi
+    done
+fi
+
+if [ -n "$REPLACE_OLD" ] && [ -n "$REPLACE_NEW" ]; then
+    for file in $JS_FILES; do
+        if [ -f "$file" ]; then
+            echo "🔄 [$file] Replacing '$REPLACE_OLD' with '$REPLACE_NEW'..."
+            sed -i "s|$REPLACE_OLD|$REPLACE_NEW|g" "$file"
+        fi
+    done
+fi
+
+# Auto-increment versions and update metadata (only for --update)
+if [ "$UPDATE_VERSION" = true ]; then
+    for file in $ALL_JS_FILES; do
+        if [ -f "$file" ]; then
+            VERSION=$(auto_increment_version "$file")
+            update_metadata "$file" "$VERSION"
+            
+            if validate_js "$file"; then
+                echo "✓ [$file] Updated to v$VERSION ($DATE)"
+            else
+                echo "✗ [$file] Syntax error - reverting"
+                git checkout "$file"
+                exit 1
+            fi
+        fi
+    done
+
+    # Commit and push
+    git add $ALL_JS_FILES
+    git commit -m "Auto-update via editor.sh to v$VERSION ($DATE)"
+    git push
+    echo "✓ [REPO] Pushed to GitHub"
+fi
