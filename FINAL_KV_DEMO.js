@@ -1,4 +1,4 @@
-import { div, h1, h2, h3, p, table, thead, tbody, tr, th, td, form, input, button, render, factory } from "https://raw.githubusercontent.com/dingemoe/app_leinad/fdf128d276a3d7ab5832d7728728db3bc94ed9fa/classes/html.js";
+import { div, h1, h2, h3, p, table, thead, tbody, tr, th, td, form, input, button, renderFactory, factory } from "https://raw.githubusercontent.com/dingemoe/app_leinad/fdf128d276a3d7ab5832d7728728db3bc94ed9fa/classes/html.js";
 import { setDefaultTheme } from "https://raw.githubusercontent.com/dingemoe/app_leinad/fdf128d276a3d7ab5832d7728728db3bc94ed9fa/classes/theme.js";
 
 setDefaultTheme("dracula");
@@ -343,4 +343,4 @@ const App = factory(() =>
 );
 
 // Deno playground server with KV
-Deno.serve(async () => render(App()));
+Deno.serve(async () => renderFactory(App()));

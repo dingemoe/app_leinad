@@ -389,7 +389,7 @@ export const form = (source, builderFn) => new Form(source, builderFn);
 export const factory = (fn) => fn;
 
 // Server render function - fixed for factory patterns
-export const render = async (element) => {
+export const renderFactory = async (element) => {
   // If element is a function (factory), call it to get the actual element
   const actualElement = typeof element === 'function' ? element() : element;
   
