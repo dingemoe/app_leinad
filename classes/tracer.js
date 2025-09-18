@@ -1,16 +1,17 @@
 // classes/tracer.js
 // Logger/Tracer for userscripts. Posts to Deno KV API.
-// - Captures full GM_info object (snapshot) and stores it per location+@name (OVERWRITE).
-// - Hooks console/error/unhandledrejection and stores latest per event (OVERWRITE).
-// - Provides start(callback) so you can run your UI code cleanly.
+// - Lagrer FULL GM_info (snapshot) per location+@name (OVERWRITE).
+// - Lagrer siste event per location+event (OVERWRITE).
+// - Trygg console-hook som unngår “getter only”-feil i Tampermonkey.
+// - start(callback) lar deg kjøre UI-koden din enkelt.
 
 (function (root) {
   class LeinadTracer {
     /**
      * @param {Object} opts
      * @param {string} opts.apiBase      Deno endpoint, e.g. "https://leinad-log.deno.dev"
-     * @param {string} [opts.appName]    default name in KV; default GM_info.script.name || "leinad-app"
-     * @param {string} [opts.location]   default location in KV; default location.hostname
+     * @param {string} [opts.appName]    default name; default GM_info.script.name || "leinad-app"
+     * @param {string} [opts.location]   default location; default location.hostname
      * @param {number} [opts.flushMs]    batch interval (ms), default 800
      * @param {boolean}[opts.hookConsole] hook console.*, default true
      * @param {boolean}[opts.hookErrors]  hook window errors, default true
@@ -22,15 +23,15 @@
       this.hookConsoleFlag = opts.hookConsole !== false;
       this.hookErrorsFlag = opts.hookErrors !== false;
 
-      // Full GM_info snapshot (as JSON-safe)
+      // Full GM_info snapshot (gjør den JSON-safe)
       const gm = (typeof GM_info !== "undefined" && GM_info) ? safeClone(GM_info) : null;
 
       const scriptName = gm?.script?.name || "leinad-app";
       this.appName = opts.appName || scriptName;
       this.loc = opts.location || (typeof location !== "undefined" ? (location.hostname || "unknown") : "unknown");
 
-      this.scriptMeta = gm?.script || null; // nice-to-have flattened
-      this.gmFull = gm;                      // full GM_info snapshot
+      this.scriptMeta = gm?.script || null; // flatten
+      this.gmFull = gm;                      // full GM_info
 
       this._q = [];
       this._timer = null;
@@ -51,7 +52,7 @@
       };
     }
 
-    // ---- Public logging helpers (events/console) ----
+    // ---- Public logging helpers ----
     logEvent(eventName, details = {}) {
       this._enqueue({
         _mode: "event",
@@ -66,14 +67,14 @@
     error(...args) { this._enqueue({ _mode: "event", _event: "console.error", level: "error", args, url: location.href }); }
 
     /**
-     * Start tracer and run your callback after DOM is ready.
+     * Start tracer og kjør callback når DOM er klar
      * @param {(ctx:{ logEvent:Function, tracer:LeinadTracer, info:Object })=>void} callback
      */
     start(callback) {
       if (this.hookConsoleFlag) this._hookConsole();
       if (this.hookErrorsFlag) this._hookErrors();
 
-      // Immediately queue GM snapshot (OVERWRITE server-side)
+      // Kø FULL GM snapshot (server overskriver på gm-key)
       this._enqueueGM();
 
       const run = () => {
@@ -91,7 +92,7 @@
         run();
       }
 
-      // Flush when page is hidden/unloaded
+      // Flush ved skjuling/lukking
       if (typeof window !== "undefined") {
         window.addEventListener("pagehide", () => this.flush(true));
         document.addEventListener("visibilitychange", () => {
@@ -104,7 +105,7 @@
     _enqueueGM() {
       this._q.push({
         _mode: "gm",
-        gm: this.gmFull,     // FULL GM object here
+        gm: this.gmFull,     // FULL GM objekt
         script: this.scriptMeta,
         ua: (typeof navigator !== "undefined" ? navigator.userAgent : undefined),
       });
@@ -115,15 +116,15 @@
       if (this._consoleHooked) return;
       this._consoleHooked = true;
 
-      // helper: sjekk om en property kan overrides
       const canOverride = (obj, prop) => {
         if (!obj) return false;
-        const d = Object.getOwnPropertyDescriptor(obj, prop);
+        let d = Object.getOwnPropertyDescriptor(obj, prop);
+        if (!d && obj.__proto__) d = Object.getOwnPropertyDescriptor(obj.__proto__, prop);
         if (!d) return false;
         return !!(d.writable || d.configurable || d.set);
       };
 
-      // prøv å hooke i denne rekkefølgen: unsafeWindow.console -> window.console -> console
+      // Prøv i rekkefølge: unsafeWindow.console -> window.console -> console
       const candidates = [];
       try { if (typeof unsafeWindow !== "undefined" && unsafeWindow.console) candidates.push(unsafeWindow.console); } catch {}
       try { if (typeof window !== "undefined" && window.console) candidates.push(window.console); } catch {}
@@ -131,53 +132,42 @@
 
       let target = null;
       for (const c of candidates) {
-        // sjekk om minst én av metodene lar seg hooke her
-        if (["log","warn","error"].some(m => canOverride(c, m) || canOverride(Object.getPrototypeOf(c), m))) {
+        if (["log","warn","error"].some(m => canOverride(c, m))) {
           target = c;
           break;
         }
       }
+      if (!target) return; // ingen trygg hook mulig i miljøet
 
-      if (!target) {
-        // Ikke mulig å override i denne miljøet – bare gi opp stille
-        // (du vil fortsatt få window.onerror & unhandledrejection + manual logEvent)
-        return;
-      }
+      const tryBind = (name) => {
+        const orig = target[name]?.bind ? target[name].bind(target) : target[name];
+        if (typeof orig !== "function") return false;
 
-      const bind = (name) => {
-        // finn descriptor enten på obj eller prototypen
-        let desc = Object.getOwnPropertyDescriptor(target, name);
-        if (!desc) desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target), name);
-        const orig = target[name].bind(target);
+        const descSelf = Object.getOwnPropertyDescriptor(target, name);
+        const descProto = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target) || {}, name);
+        const desc = descSelf || descProto;
 
         const wrapper = (...args) => {
           try {
-            this._enqueue({ _mode: "event", _event: `console.${name}` , level: name, args, url: location.href, ua: navigator.userAgent });
+            this._enqueue({ _mode: "event", _event: `console.${name}`, level: name, args, url: location.href, ua: navigator.userAgent });
           } catch {}
           return orig(...args);
         };
 
         try {
-          // hvis konfigurerbar: bruk defineProperty (sikkert i Chromium)
           if (desc && desc.configurable) {
             Object.defineProperty(target, name, { value: wrapper, writable: !!desc.writable, configurable: true });
-          } else {
-            // ellers prøv enkel assignment hvis writable
-            if (desc && desc.writable) {
-              target[name] = wrapper;
-            } else {
-              // ikke mulig å hooke akkurat denne metoden – hopp over
-              return false;
-            }
+            return true;
           }
-          return true;
-        } catch {
-          return false;
-        }
+          if (desc && desc.writable) {
+            target[name] = wrapper;
+            return true;
+          }
+        } catch {}
+        return false;
       };
 
-      // forsøk hver metode uavhengig
-      ["log","warn","error"].forEach(bind);
+      ["log","warn","error"].forEach(tryBind);
     }
 
     _hookErrors() {
@@ -186,10 +176,8 @@
 
       window.addEventListener("error", (ev) => {
         this._enqueue({ _mode: "event", _event: "window.error", level: "error",
-          message: ev.message,
-          stack: ev.error && ev.error.stack,
-          filename: ev.filename, lineno: ev.lineno, colno: ev.colno,
-          url: location.href });
+          message: ev.message, stack: ev.error && ev.error.stack,
+          filename: ev.filename, lineno: ev.lineno, colno: ev.colno, url: location.href });
       });
 
       window.addEventListener("unhandledrejection", (ev) => {
@@ -200,7 +188,6 @@
     }
 
     _enqueue(data) {
-      // enrich with metadata
       const enriched = {
         ...data,
         script: this.scriptMeta || undefined,
@@ -213,7 +200,6 @@
     async flush(useBeacon = false) {
       if (!this._q.length) return;
 
-      // Map queue to server payloads (snapshot behavior)
       const nowISO = new Date().toISOString();
       const payloads = this._q.splice(0, this._q.length).map((d) => {
         if (d._mode === "gm") {
@@ -225,19 +211,17 @@
             data: { gm: d.gm, script: d.script, ua: d.ua },
           };
         }
-        // default to event snapshot
         const eventName = String(d._event || "custom.event");
         return {
-          mode: "event",
-          event: eventName,
-          name: this.appName,
-          location: this.loc,
-          datetime: nowISO,
-          data: d,
+            mode: "event",
+            event: eventName,
+            name: this.appName,
+            location: this.loc,
+            datetime: nowISO,
+            data: d,
         };
       });
 
-      // Batch send (array). Server processes each and overwrites snapshots as needed.
       try {
         if (useBeacon && typeof navigator !== "undefined" && navigator.sendBeacon) {
           const blob = new Blob([JSON.stringify(payloads)], { type: "application/json" });
@@ -250,7 +234,7 @@
           });
         }
       } catch (e) {
-        // On failure, push raw entries back (they'll be rewrapped next flush)
+        // legg tilbake for retry
         payloads.forEach((p) => {
           if (p.mode === "gm") this._q.push({ _mode: "gm", gm: p.data?.gm, script: p.data?.script, ua: p.data?.ua });
           else this._q.push({ _mode: "event", _event: p.event, ...p.data });
