@@ -37,11 +37,6 @@ class leinad_app_render {
     "csstailwind": "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
         };
 
-        if (type === "style" || type === "script") {
-            this.elements.head.push(entry);
-        } else {
-            this.elements.body.push(entry);
-        }
     }
 
     isValidURL(url) {
