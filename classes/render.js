@@ -15,6 +15,7 @@ class leinad_app_render {
             padding: "1rem"
         });
     }
+
     constructor() {
         this.host = document.createElement("div");
         this.host.setAttribute("id", "leinad_app_host");
@@ -36,7 +37,30 @@ class leinad_app_render {
             cssbear: "https://cdn.jsdelivr.net/npm/beercss@3.12.7/+esm",
             csstailwind: "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"
         };
+    }
 
+    // Ny helper-metode for å registrere elementer
+    elem([name, type]) {
+        let elem;
+        switch (type) {
+            case "style":
+                elem = document.createElement("link");
+                elem.className = name;
+                this.elements.head.push({ name, elem, type });
+                break;
+            case "script":
+                elem = document.createElement("script");
+                elem.className = name;
+                this.elements.head.push({ name, elem, type });
+                break;
+            case "div":
+            default:
+                elem = document.createElement("div");
+                elem.id = name;
+                this.elements.body.push({ name, elem, type: "div" });
+                break;
+        }
+        return elem;
     }
 
     isValidURL(url) {
@@ -53,7 +77,6 @@ class leinad_app_render {
             elem.setAttribute(key, val);
         });
     }
-
 
     style(elem, config) {
         const fallbackHref = this.CDN_REGISTRY[this.extractKeyFromElement(elem)];
