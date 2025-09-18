@@ -53,26 +53,47 @@ class App {
 Deno.serve(async () => render(new App()));
 ```
 
-### Chat Applikasjon
+### DevOps Chat Applikasjon
 ```javascript
-import { div, render } from "https://raw.githubusercontent.com/dingemoe/app_leinad/main/classes/html.js";
-import { channel } from "https://raw.githubusercontent.com/dingemoe/app_leinad/main/classes/channel.js";
+import { div, render } from "./classes/html.js";
+import { channel } from "./classes/channel.js";
+import { devops } from "./classes/devops.js";
 
-class ChatApp {
+class DevOpsChat {
   render() {
-    const chat = channel("general", {
-      wsUrl: "ws://localhost:8080/chat",
-      autoScroll: true
+    const integration = devops({
+      baseUrl: 'https://api.github.com',
+      endpoints: [
+        {
+          name: 'repos',
+          path: '/user/repos',
+          method: 'GET',
+          description: 'List repositories',
+          aliases: ['r']
+        },
+        {
+          name: 'issues',
+          path: '/repos/{owner}/{repo}/issues',
+          method: 'GET',
+          description: 'List issues',
+          params: [
+            { name: 'owner', type: 'path', required: true },
+            { name: 'repo', type: 'path', required: true }
+          ]
+        }
+      ]
     });
     
-    chat.addUser("user1", { name: "Alice" });
-    chat.addAgent("bot1", { name: "Assistant", type: "ai" });
+    const chat = channel("devops", {
+      devops: integration,
+      autoScroll: true
+    });
     
     return div().set([chat]);
   }
 }
 
-Deno.serve(async () => render(new ChatApp()));
+Deno.serve(async () => render(new DevOpsChat()));
 ```
 
 ## API Dokumentasjon
@@ -102,8 +123,61 @@ Deno.serve(async () => render(new ChatApp()));
   showTimestamps: true,    // Vis tidsstempler
   allowEmoji: true,        // Tillat emoji
   wsUrl: "ws://...",       // WebSocket URL
-  httpEndpoint: "http://..." // HTTP polling endpoint
+  httpEndpoint: "http://...", // HTTP polling endpoint
+  devops: devopsInstance   // DevOps integrasjon
 }
+```
+
+### DevOps Commands
+
+Bruk slash commands i chatten for å kalle API endpoints:
+
+```bash
+# Basis kommandoer
+/help                    # Vis tilgjengelige kommandoer
+/status                  # Sjekk API status
+/config                  # Vis konfigurasjon
+
+# GitHub API eksempler
+/repos                   # List repositories
+/repos --per_page=5      # List 5 repositories
+/repo microsoft vscode   # Get repository details
+/issues microsoft vscode # List issues
+/pr microsoft vscode     # List pull requests
+
+# Kubernetes eksempler
+/pods                    # List pods
+/pods --namespace=kube-system # List pods in namespace
+/deploy myapp            # Create deployment
+/scale myapp 5           # Scale to 5 replicas
+
+# Docker eksempler
+/containers              # List containers
+/start container_id      # Start container
+/logs container_id       # Get container logs
+```
+
+### DevOps Configuration
+```javascript
+const devopsIntegration = devops({
+  baseUrl: 'https://api.example.com',
+  timeout: 30000,
+  headers: { 'Authorization': 'Bearer token' },
+  endpoints: [
+    {
+      name: 'deploy',              // Command name
+      path: '/deploy/{app}',       // API path
+      method: 'POST',              // HTTP method
+      description: 'Deploy app',   // Help text
+      params: [
+        { name: 'app', type: 'path', required: true },
+        { name: 'version', type: 'body', default: 'latest' },
+        { name: 'env', type: 'query', default: 'prod' }
+      ],
+      aliases: ['d']               // Alternative names
+    }
+  ]
+});
 ```
 
 ## WebSocket Server
@@ -137,7 +211,10 @@ div().dracula().set([...])
 ## Filer
 
 - `classes/html.js` - Core HTML komponenter og rendering
-- `classes/channel.js` - Real-time chat system
+- `classes/channel.js` - Real-time chat system med DevOps støtte
+- `classes/devops.js` - DevOps API integrasjon med slash commands
 - `classes/theme.js` - Tema håndtering
 - `websocket_server.js` - WebSocket chat server
-- `chat_example.js` - Komplett chat app eksempel
+- `chat_example.js` - Basic chat app eksempel
+- `devops_chat_example.js` - DevOps chat med slash commands
+- `devops_configs.js` - Ferdigkonfigurerte DevOps integrasjoner
