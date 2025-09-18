@@ -1,4 +1,20 @@
 class leinad_app_render {
+    // Setter default stil på wrapper
+    applyDefaultStyles(elem) {
+        Object.assign(elem.style, {
+            position: "fixed",
+            bottom: "0",
+            left: "0",
+            zIndex: "9999",
+            width: "300px",
+            height: "300px",
+            background: "rgba(0,0,0,0.7)",
+            color: "white",
+            overflow: "auto",
+            fontFamily: "sans-serif",
+            padding: "1rem"
+        });
+    }
     /**
      * CRUD-operasjoner på cdn_registry.json
      * @param {"get"|"add"|"update"|"delete"} action
