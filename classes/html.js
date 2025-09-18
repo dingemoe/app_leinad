@@ -388,9 +388,12 @@ export const form = (source, builderFn) => new Form(source, builderFn);
 // Factory function to avoid React error #31
 export const factory = (fn) => fn;
 
-// Server render function
+// Server render function - fixed for factory patterns
 export const render = (element) => {
-  return new Response(renderToString(React.createElement(() => element.toReact())), {
+  // If element is a function (factory), call it to get the actual element
+  const actualElement = typeof element === 'function' ? element() : element;
+  
+  return new Response(renderToString(React.createElement(() => actualElement.toReact())), {
     headers: { "Content-Type": "text/html" }
   });
 };
