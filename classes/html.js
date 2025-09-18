@@ -19,6 +19,7 @@ export class El {
   className(cls) { this.props.className = cls; return this; }
   attr(name, value) { this.props[name] = value; return this; }
   text(txt) { this.children.push(txt); return this; }
+  click(handler) { this.props.onClick = handler; return this; }
 
   set(children) {
     const kids = children || [];
