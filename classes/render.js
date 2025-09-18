@@ -1,11 +1,16 @@
 class leinad_app_render {
     constructor() {
+        this.host = document.createElement("div");
+        this.host.setAttribute("id", "leinad_app_host");
+        this.shadow = this.host.attachShadow({ mode: "open" });
+
         this.wrap = document.createElement("div");
         this.wrap.setAttribute("id", "app_leinad_wrap");
+        this.applyDefaultStyles(this.wrap);
 
         this.elements = {
-            head: [],  // style og script
-            body: []   // div, section, etc.
+            head: [],
+            body: []
         };
 
         this.CDN_REGISTRY = {
@@ -17,7 +22,30 @@ class leinad_app_render {
         };
     }
 
-    // Oppretter og lagrer et nytt element
+    // Setter default stil på wrapper
+    applyDefaultStyles(elem) {
+        Object.assign(elem.style, {
+            position: "fixed",
+            bottom: "0",
+            left: "0",
+            zIndex: "9999",
+            width: "300px",
+            height: "300px",
+            background: "rgba(0,0,0,0.7)",
+            color: "white",
+            overflow: "auto",
+            fontFamily: "sans-serif",
+            padding: "1rem",
+            margin: "0",
+            padding: "0"
+        });
+    }
+
+    // DOMContentLoaded callback
+    onReady(callback) {
+        window.addEventListener("DOMContentLoaded", () => callback(this));
+    }
+
     elem([name, type]) {
         const element = document.createElement(type);
         element.setAttribute("class", name);
@@ -30,7 +58,6 @@ class leinad_app_render {
         }
     }
 
-    // Validerer URL
     isValidURL(url) {
         try {
             new URL(url);
@@ -40,68 +67,39 @@ class leinad_app_render {
         }
     }
 
-    // Setter attributter
     setAttributes(elem, attributes = {}) {
         Object.entries(attributes).forEach(([key, val]) => {
             elem.setAttribute(key, val);
         });
     }
 
-    // Setter CSS via href eller inline
     style(elem, config) {
-        if (config.href) {
-            if (!this.isValidURL(config.href)) {
-                console.warn(`Ugyldig href: ${config.href}`);
-                return;
-            }
-            elem.setAttribute("rel", "stylesheet");
-            elem.setAttribute("href", config.href);
+        const fallbackHref = this.CDN_REGISTRY[this.extractKeyFromElement(elem)];
+        const href = config.href || fallbackHref;
 
-            // Fallback hvis href feiler
+        if (href && this.isValidURL(href)) {
+            elem.setAttribute("rel", "stylesheet");
+            elem.setAttribute("href", href);
             elem.onerror = () => {
-                const key = this.extractKeyFromURL(config.href);
-                const fallback = this.CDN_REGISTRY[key];
-                if (fallback) {
-                    console.warn(`Style feilet: ${config.href}. Foreslår CDN: ${fallback}`);
-                    const altLink = document.createElement("link");
-                    altLink.rel = "stylesheet";
-                    altLink.href = fallback;
-                    document.head.appendChild(altLink);
-                } else {
-                    console.error(`Ingen fallback-CDN funnet for nøkkel: ${key}`);
-                }
+                console.warn(`Style feilet: ${href}`);
             };
         } else if (config.body) {
             Object.entries(config.body).forEach(([key, val]) => {
                 elem.style[key] = val;
             });
         }
+
         this.setAttributes(elem, config.attributes);
     }
 
-    // Setter script via src eller inline, med fallback
     script(elem, config) {
-        if (config.src) {
-            if (!this.isValidURL(config.src)) {
-                console.warn(`Ugyldig src: ${config.src}`);
-                return;
-            }
+        const fallbackSrc = this.CDN_REGISTRY[this.extractKeyFromElement(elem)];
+        const src = config.src || fallbackSrc;
 
-            elem.setAttribute("src", config.src);
-
-            // Fallback hvis src feiler
+        if (src && this.isValidURL(src)) {
+            elem.setAttribute("src", src);
             elem.onerror = () => {
-                const key = this.extractKeyFromURL(config.src);
-                const fallback = this.CDN_REGISTRY[key];
-                if (fallback) {
-                    console.warn(`Script feilet: ${config.src}. Foreslår CDN: ${fallback}`);
-                    const altScript = document.createElement("script");
-                    altScript.src = fallback;
-                    altScript.async = true;
-                    document.head.appendChild(altScript);
-                } else {
-                    console.error(`Ingen fallback-CDN funnet for nøkkel: ${key}`);
-                }
+                console.warn(`Script feilet: ${src}`);
             };
         } else if (config.code) {
             elem.textContent = config.code;
@@ -110,23 +108,22 @@ class leinad_app_render {
         this.setAttributes(elem, config.attributes);
     }
 
-    // Trekker ut nøkkel fra URL for CDN-oppslag
-    extractKeyFromURL(url) {
-        try {
-            const parts = new URL(url).pathname.split("/");
-            return parts.find(part => Object.keys(this.CDN_REGISTRY).includes(part)) || "";
-        } catch {
-            return "";
-        }
+    extractKeyFromElement(elem) {
+        return elem.getAttribute("class") || "";
     }
 
-    // Setter HTML-innhold
     html(elem, htmlArray) {
         elem.innerHTML = htmlArray.join("");
     }
 
-    // Hovedrender-funksjon
     render(configs = []) {
+        const allNames = configs.map(([name]) => name);
+        [...this.elements.head].forEach(({ name }) => {
+            if (!allNames.includes(name) && this.CDN_REGISTRY[name]) {
+                configs.unshift([name, {}]);
+            }
+        });
+
         configs.forEach(([name, set]) => {
             const match = [...this.elements.head, ...this.elements.body].find(e => e.name === name);
             if (!match) {
@@ -143,17 +140,23 @@ class leinad_app_render {
                     this.script(elem, set);
                 } else if (Array.isArray(set)) {
                     this.html(elem, set);
+                } else if (type === "div" && name === "app_leinad_wrap" && typeof set === "object") {
+                    Object.entries(set).forEach(([key, val]) => {
+                        this.wrap.style[key] = val;
+                    });
                 }
             } catch (err) {
                 console.error("Feil under rendering:", err);
             }
         });
 
-        // Legg til style og script først
         [...this.elements.head, ...this.elements.body].forEach(({ elem }) => {
             this.wrap.appendChild(elem);
         });
 
-        return this.wrap;
+        this.shadow.appendChild(this.wrap);
+        document.body.appendChild(this.host);
+
+        return this.shadow;
     }
 }
