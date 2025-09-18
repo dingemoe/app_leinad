@@ -22,6 +22,31 @@ class leinad_app_render {
         };
     }
 
+    /**
+     * Søk etter rammeverk i jsDelivr, unpkg og cdnjs parallelt
+     * @param {string} lib Navn på rammeverk (f.eks. "vue")
+     * @returns {Promise<object>} Resultater fra alle kilder
+     */
+    async cdn_lib(lib) {
+        const jsdelivr = fetch(`https://data.jsdelivr.com/v1/packages/npm/${encodeURIComponent(lib)}`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null);
+        const unpkg = fetch(`https://unpkg.com/browse/${encodeURIComponent(lib)}/`)
+            .then(r => r.ok ? r.text() : null)
+            .catch(() => null);
+        const cdnjs = fetch(`https://api.cdnjs.com/libraries?search=${encodeURIComponent(lib)}`)
+            .then(r => r.ok ? r.json() : null)
+            .catch(() => null);
+
+        const [jsdelivrRes, unpkgRes, cdnjsRes] = await Promise.all([jsdelivr, unpkg, cdnjs]);
+
+        return {
+            jsdelivr: jsdelivrRes,
+            unpkg: unpkgRes,
+            cdnjs: cdnjsRes
+        };
+    }
+
     // Setter default stil på wrapper
     applyDefaultStyles(elem) {
         Object.assign(elem.style, {
