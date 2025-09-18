@@ -40,6 +40,9 @@ REMOVE_FROM=""
 REMOVE_TO=""
 MULTILINE_OLD=""
 MULTILINE_NEW=""
+SYNC_CHECK=false
+FORCE_PUSH=false
+COMPARE_GITHUB=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -59,6 +62,9 @@ while [[ $# -gt 0 ]]; do
         --lines) SHOW_LINES="$2"; shift 2 ;;
         --remove-lines) REMOVE_FROM="$2"; REMOVE_TO="$3"; shift 3 ;;
         --multiline-replace) MULTILINE_OLD="$2"; MULTILINE_NEW="$3"; shift 3 ;;
+        --sync) SYNC_CHECK=true; shift ;;
+        --force-push) FORCE_PUSH=true; shift ;;
+        --compare) COMPARE_GITHUB=true; shift ;;
         *) UPDATE_VERSION=true; break ;;
     esac
 done
@@ -202,6 +208,107 @@ with open('$temp_result', 'w') as f:
     rm -f "$temp_old" "$temp_new" "$temp_result"
 }
 
+# Compare local files with GitHub
+compare_with_github() {
+    local file="$1"
+    local github_url="https://raw.githubusercontent.com/dingemoe/app_leinad/main/$file"
+    local temp_github="/tmp/github_${file##*/}_$$"
+    
+    echo "🔍 [${file##*/}] Comparing with GitHub..."
+    
+    # Download GitHub version
+    if ! curl -s "$github_url" > "$temp_github"; then
+        echo "❌ [${file##*/}] Failed to download from GitHub"
+        return 1
+    fi
+    
+    # Compare files
+    if diff -q "$file" "$temp_github" >/dev/null 2>&1; then
+        echo "✅ [${file##*/}] Local and GitHub versions match"
+        rm -f "$temp_github"
+        return 0
+    else
+        echo "⚠️ [${file##*/}] Local and GitHub versions differ"
+        echo "==================== DIFFERENCES ===================="
+        diff -u "$temp_github" "$file" | head -20
+        echo "======================================================"
+        rm -f "$temp_github"
+        return 1
+    fi
+}
+
+# Sync local files to GitHub (auto-commit and push)
+sync_to_github() {
+    local file="$1"
+    
+    echo "🚀 [${file##*/}] Syncing to GitHub..."
+    
+    # Validate syntax first
+    if ! validate_js "$file"; then
+        echo "❌ [${file##*/}] Syntax error - cannot sync"
+        return 1
+    fi
+    
+    # Auto-increment version and update metadata
+    auto_increment_version "$file"
+    update_metadata "$file" "$new_version"
+    
+    # Git operations
+    git add "$file"
+    local commit_msg="Auto-sync ${file##*/} v$new_version ($(date +%Y-%m-%d))"
+    git commit -m "$commit_msg"
+    
+    if [ "$FORCE_PUSH" = true ]; then
+        git push --force-with-lease
+        echo "🔥 [${file##*/}] Force pushed to GitHub"
+    else
+        git push
+        echo "✅ [${file##*/}] Pushed to GitHub"
+    fi
+}
+
+# Check GitHub sync status for all JS files
+check_sync_status() {
+    echo "📡 [SYNC] Checking GitHub sync status..."
+    echo "=========================================="
+    
+    local all_synced=true
+    for file in $ALL_JS_FILES; do
+        if [ -f "$file" ]; then
+            if ! compare_with_github "$file"; then
+                all_synced=false
+            fi
+        fi
+    done
+    
+    echo "=========================================="
+    if [ "$all_synced" = true ]; then
+        echo "🎉 [SYNC] All files are synchronized with GitHub"
+    else
+        echo "⚠️ [SYNC] Some files need synchronization"
+        echo "Run: ./editor.sh --sync to auto-sync all files"
+    fi
+}
+
+# Auto-sync all JS files to GitHub
+auto_sync_all() {
+    echo "🔄 [SYNC] Auto-syncing all JS files to GitHub..."
+    echo "=========================================="
+    
+    for file in $ALL_JS_FILES; do
+        if [ -f "$file" ]; then
+            # Compare first
+            if ! compare_with_github "$file"; then
+                echo "🔄 [${file##*/}] Needs sync - pushing to GitHub..."
+                sync_to_github "$file"
+            fi
+        fi
+    done
+    
+    echo "=========================================="
+    echo "✅ [SYNC] Auto-sync completed"
+}
+
 # Show specific lines from a file  
 show_lines() {
     local file="$1"
@@ -325,6 +432,17 @@ if [ -n "$SHOW_LINES" ]; then
         echo "❌ Error: --lines requires --file parameter to specify which file"
         echo "Example: ./editor.sh --file render.js --lines 45,66"
     fi
+    exit 0
+fi
+
+# Handle GitHub sync operations
+if [ "$COMPARE_GITHUB" = true ]; then
+    check_sync_status
+    exit 0
+fi
+
+if [ "$SYNC_CHECK" = true ]; then
+    auto_sync_all
     exit 0
 fi
 
