@@ -1,12 +1,4 @@
 class leinad_app_render {
-    // Kjør callback når DOM er klar
-    onReady(callback) {
-        if (document.readyState === "loading") {
-            document.addEventListener("DOMContentLoaded", () => callback(this));
-        } else {
-            callback(this);
-        }
-    }
     // Setter default stil på wrapper
     applyDefaultStyles(elem) {
         Object.assign(elem.style, {
