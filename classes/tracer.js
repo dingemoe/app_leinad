@@ -115,14 +115,69 @@
       if (this._consoleHooked) return;
       this._consoleHooked = true;
 
-      const orig = {
-        log: console.log.bind(console),
-        warn: console.warn.bind(console),
-        error: console.error.bind(console),
+      // helper: sjekk om en property kan overrides
+      const canOverride = (obj, prop) => {
+        if (!obj) return false;
+        const d = Object.getOwnPropertyDescriptor(obj, prop);
+        if (!d) return false;
+        return !!(d.writable || d.configurable || d.set);
       };
-      console.log = (...args) => { try { this.log(...args); } catch {} orig.log(...args); };
-      console.warn = (...args) => { try { this.warn(...args); } catch {} orig.warn(...args); };
-      console.error = (...args) => { try { this.error(...args); } catch {} orig.error(...args); };
+
+      // prøv å hooke i denne rekkefølgen: unsafeWindow.console -> window.console -> console
+      const candidates = [];
+      try { if (typeof unsafeWindow !== "undefined" && unsafeWindow.console) candidates.push(unsafeWindow.console); } catch {}
+      try { if (typeof window !== "undefined" && window.console) candidates.push(window.console); } catch {}
+      if (typeof console !== "undefined") candidates.push(console);
+
+      let target = null;
+      for (const c of candidates) {
+        // sjekk om minst én av metodene lar seg hooke her
+        if (["log","warn","error"].some(m => canOverride(c, m) || canOverride(Object.getPrototypeOf(c), m))) {
+          target = c;
+          break;
+        }
+      }
+
+      if (!target) {
+        // Ikke mulig å override i denne miljøet – bare gi opp stille
+        // (du vil fortsatt få window.onerror & unhandledrejection + manual logEvent)
+        return;
+      }
+
+      const bind = (name) => {
+        // finn descriptor enten på obj eller prototypen
+        let desc = Object.getOwnPropertyDescriptor(target, name);
+        if (!desc) desc = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(target), name);
+        const orig = target[name].bind(target);
+
+        const wrapper = (...args) => {
+          try {
+            this._enqueue({ _mode: "event", _event: `console.${name}` , level: name, args, url: location.href, ua: navigator.userAgent });
+          } catch {}
+          return orig(...args);
+        };
+
+        try {
+          // hvis konfigurerbar: bruk defineProperty (sikkert i Chromium)
+          if (desc && desc.configurable) {
+            Object.defineProperty(target, name, { value: wrapper, writable: !!desc.writable, configurable: true });
+          } else {
+            // ellers prøv enkel assignment hvis writable
+            if (desc && desc.writable) {
+              target[name] = wrapper;
+            } else {
+              // ikke mulig å hooke akkurat denne metoden – hopp over
+              return false;
+            }
+          }
+          return true;
+        } catch {
+          return false;
+        }
+      };
+
+      // forsøk hver metode uavhengig
+      ["log","warn","error"].forEach(bind);
     }
 
     _hookErrors() {
