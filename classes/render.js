@@ -1,4 +1,57 @@
 class leinad_app_render {
+    /**
+     * CRUD-operasjoner på cdn_registry.json
+     * @param {"get"|"add"|"update"|"delete"} action
+     * @param {string} [key] CDN-navn
+     * @param {string} [url] CDN-url (for add/update)
+     * @returns {Promise<object|boolean>} Resultat eller suksess
+     */
+    async crudCDNRegistry(action, key, url) {
+        const endpoint = "/classes/cdn_registry.json";
+        switch (action) {
+            case "get": {
+                const res = await fetch(endpoint);
+                if (!res.ok) throw new Error("Kunne ikke hente registry");
+                return await res.json();
+            }
+            case "add": {
+                // Forutsetter at server støtter POST/PUT
+                const registry = await this.crudCDNRegistry("get");
+                if (registry[key]) throw new Error("CDN finnes allerede");
+                registry[key] = url;
+                const res = await fetch(endpoint, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(registry)
+                });
+                return res.ok;
+            }
+            case "update": {
+                const registry = await this.crudCDNRegistry("get");
+                if (!registry[key]) throw new Error("CDN finnes ikke");
+                registry[key] = url;
+                const res = await fetch(endpoint, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(registry)
+                });
+                return res.ok;
+            }
+            case "delete": {
+                const registry = await this.crudCDNRegistry("get");
+                if (!registry[key]) throw new Error("CDN finnes ikke");
+                delete registry[key];
+                const res = await fetch(endpoint, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(registry)
+                });
+                return res.ok;
+            }
+            default:
+                throw new Error("Ugyldig action");
+        }
+    }
     constructor() {
         this.host = document.createElement("div");
         this.host.setAttribute("id", "leinad_app_host");
@@ -30,29 +83,11 @@ class leinad_app_render {
         }
     }
 
-    /**
-     * Søk etter rammeverk i jsDelivr, unpkg og cdnjs parallelt
-     * @param {string} lib Navn på rammeverk (f.eks. "vue")
-     * @returns {Promise<object>} Resultater fra alle kilder
-     */
-    async cdn_lib(lib) {
-        const jsdelivr = fetch(`https://data.jsdelivr.com/v1/packages/npm/${encodeURIComponent(lib)}`)
-            .then(r => r.ok ? r.json() : null)
-            .catch(() => null);
-        const unpkg = fetch(`https://unpkg.com/browse/${encodeURIComponent(lib)}/`)
-            .then(r => r.ok ? r.text() : null)
-            .catch(() => null);
-        const cdnjs = fetch(`https://api.cdnjs.com/libraries?search=${encodeURIComponent(lib)}`)
-            .then(r => r.ok ? r.json() : null)
-            .catch(() => null);
-
-        const [jsdelivrRes, unpkgRes, cdnjsRes] = await Promise.all([jsdelivr, unpkg, cdnjs]);
-
-        return {
-            jsdelivr: jsdelivrRes,
-            unpkg: unpkgRes,
-            cdnjs: cdnjsRes
-        };
+    // Kall denne før du bruker CDN_REGISTRY i kode som trenger det
+    async ensureCDNRegistryLoaded() {
+        if (this._cdnRegistryLoaded) {
+            await this._cdnRegistryLoaded;
+        }
     }
 
     // Setter default stil på wrapper
@@ -68,9 +103,7 @@ class leinad_app_render {
             color: "white",
             overflow: "auto",
             fontFamily: "sans-serif",
-            padding: "1rem",
-            margin: "0",
-            padding: "0"
+            padding: "1rem"
         });
     }
 
@@ -106,7 +139,9 @@ class leinad_app_render {
         });
     }
 
-    style(elem, config) {
+
+    async style(elem, config) {
+        await this.ensureCDNRegistryLoaded();
         const fallbackHref = this.CDN_REGISTRY[this.extractKeyFromElement(elem)];
         const href = config.href || fallbackHref;
 
@@ -125,7 +160,8 @@ class leinad_app_render {
         this.setAttributes(elem, config.attributes);
     }
 
-    script(elem, config) {
+    async script(elem, config) {
+        await this.ensureCDNRegistryLoaded();
         const fallbackSrc = this.CDN_REGISTRY[this.extractKeyFromElement(elem)];
         const src = config.src || fallbackSrc;
 
@@ -149,7 +185,8 @@ class leinad_app_render {
         elem.innerHTML = htmlArray.join("");
     }
 
-    render(configs = []) {
+    async render(configs = []) {
+        await this.ensureCDNRegistryLoaded();
         const allNames = configs.map(([name]) => name);
         [...this.elements.head].forEach(({ name }) => {
             if (!allNames.includes(name) && this.CDN_REGISTRY[name]) {
@@ -157,20 +194,20 @@ class leinad_app_render {
             }
         });
 
-        configs.forEach(([name, set]) => {
+        for (const [name, set] of configs) {
             const match = [...this.elements.head, ...this.elements.body].find(e => e.name === name);
             if (!match) {
                 console.warn(`Fant ikke element med navn: ${name}`);
-                return;
+                continue;
             }
 
             const { elem, type } = match;
 
             try {
                 if (type === "style") {
-                    this.style(elem, set);
+                    await this.style(elem, set);
                 } else if (type === "script") {
-                    this.script(elem, set);
+                    await this.script(elem, set);
                 } else if (Array.isArray(set)) {
                     this.html(elem, set);
                 } else if (type === "div" && name === "app_leinad_wrap" && typeof set === "object") {
@@ -181,7 +218,7 @@ class leinad_app_render {
             } catch (err) {
                 console.error("Feil under rendering:", err);
             }
-        });
+        }
 
         [...this.elements.head, ...this.elements.body].forEach(({ elem }) => {
             this.wrap.appendChild(elem);
